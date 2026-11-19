@@ -1,0 +1,53 @@
+{
+  "task": "Forecast demand exactly 24 hours before each target 15-minute timestamp",
+  "selection_rule": "Lowest validation MAE on shared available timestamps",
+  "baseline_definitions": {
+    "yesterday": "Demand at t - 96 intervals (24 hours earlier)",
+    "last_week": "Demand at t - 672 intervals (7 days earlier)",
+    "blend_50_50": "Equal average of yesterday and last-week baselines"
+  },
+  "validation": {
+    "start_utc": "2026-01-01T00:00:00+00:00",
+    "end_utc_exclusive": "2026-07-01T00:00:00+00:00",
+    "total_intervals": 17376,
+    "paired_evaluation_intervals": 17376,
+    "excluded_due_to_missing_target_or_lag": 0,
+    "metrics": {
+      "yesterday": {
+        "mae_mw": 451.989,
+        "rmse_mw": 582.376
+      },
+      "last_week": {
+        "mae_mw": 810.664,
+        "rmse_mw": 1053.044
+      },
+      "blend_50_50": {
+        "mae_mw": 532.788,
+        "rmse_mw": 674.565
+      }
+    }
+  },
+  "selected_baseline": "yesterday",
+  "test": {
+    "start_utc": "2026-07-01T00:00:00+00:00",
+    "end_utc_exclusive": "2026-11-01T00:00:00+00:00",
+    "total_intervals": 11808,
+    "paired_evaluation_intervals": 11805,
+    "excluded_due_to_missing_target_or_lag": 3,
+    "metrics": {
+      "yesterday": {
+        "mae_mw": 397.029,
+        "rmse_mw": 544.143
+      },
+      "last_week": {
+        "mae_mw": 418.096,
+        "rmse_mw": 562.448
+      },
+      "blend_50_50": {
+        "mae_mw": 340.552,
+        "rmse_mw": 468.042
+      }
+    }
+  },
+  "note": "All baseline predictors rely only on historical demand; test used once after selection."
+}

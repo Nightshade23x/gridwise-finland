@@ -1,0 +1,12 @@
+{
+  "start_utc": "2026-01-01T00:00:00+00:00",
+  "end_utc_exclusive": "2026-10-01T00:00:00+00:00",
+  "expected_intervals": 26208,
+  "observed_rows_in_range": 26208,
+  "unique_timestamps_in_range": 26208,
+  "completeness_percent": 100.0,
+  "duplicate_timestamps": 0,
+  "null_demand_values": 0,
+  "unexpected_timestamps": [],
+  "missing_timestamps": []
+}

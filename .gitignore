@@ -1,0 +1,14 @@
+.venv/
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.vscode/
+data/raw/*.csv
+data/*.png
+data/processed/*.csv
+data/model_outputs/*.csv
+data/model_outputs/*.png
