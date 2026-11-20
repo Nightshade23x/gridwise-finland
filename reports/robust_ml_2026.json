@@ -1,0 +1,219 @@
+{
+  "purpose": "Retrospective stress test of 24-hour-ahead LightGBM with assumed historical-demand publication buffers",
+  "warning": "Assumed buffers are not measured release times. July-Oct 2026 was already inspected in prior phases, so these results are diagnostic, not a fresh independent test. Historical values may have been revised.",
+  "weather_assumption": "ERA5 observations lagged by 14 days; not an archived forecast or point-in-time weather replay.",
+  "validation_start_utc": "2026-01-01T00:00:00+00:00",
+  "test_start_utc": "2026-07-01T00:00:00+00:00",
+  "end_exclusive_utc": "2026-11-01T00:00:00+00:00",
+  "common_training_rows": 65304,
+  "common_validation_rows": 17376,
+  "common_test_rows": 11791,
+  "buffers_minutes": [
+    0,
+    15,
+    30,
+    60
+  ],
+  "buffer_results": {
+    "0": {
+      "validation_models": {
+        "calendar_and_demand": {
+          "mae_mw": 562.599,
+          "rmse_mw": 781.275
+        },
+        "calendar_demand_weather": {
+          "mae_mw": 542.237,
+          "rmse_mw": 749.844
+        }
+      },
+      "selected_model": "calendar_demand_weather",
+      "validation_baselines": {
+        "yesterday": {
+          "mae_mw": 451.989,
+          "rmse_mw": 582.376
+        },
+        "last_week": {
+          "mae_mw": 810.664,
+          "rmse_mw": 1053.044
+        },
+        "blend_50_50": {
+          "mae_mw": 532.788,
+          "rmse_mw": 674.565
+        }
+      },
+      "selected_baseline": "yesterday",
+      "test_lightgbm": {
+        "mae_mw": 306.376,
+        "rmse_mw": 413.497
+      },
+      "test_baselines": {
+        "yesterday": {
+          "mae_mw": 397.17,
+          "rmse_mw": 544.343
+        },
+        "last_week": {
+          "mae_mw": 418.03,
+          "rmse_mw": 562.357
+        },
+        "blend_50_50": {
+          "mae_mw": 340.682,
+          "rmse_mw": 468.223
+        }
+      },
+      "test_selected_baseline": {
+        "mae_mw": 397.17,
+        "rmse_mw": 544.343
+      }
+    },
+    "15": {
+      "validation_models": {
+        "calendar_and_demand": {
+          "mae_mw": 567.221,
+          "rmse_mw": 791.989
+        },
+        "calendar_demand_weather": {
+          "mae_mw": 553.456,
+          "rmse_mw": 763.872
+        }
+      },
+      "selected_model": "calendar_demand_weather",
+      "validation_baselines": {
+        "yesterday": {
+          "mae_mw": 455.792,
+          "rmse_mw": 586.809
+        },
+        "last_week": {
+          "mae_mw": 812.067,
+          "rmse_mw": 1054.725
+        },
+        "blend_50_50": {
+          "mae_mw": 535.224,
+          "rmse_mw": 677.747
+        }
+      },
+      "selected_baseline": "yesterday",
+      "test_lightgbm": {
+        "mae_mw": 310.435,
+        "rmse_mw": 418.023
+      },
+      "test_baselines": {
+        "yesterday": {
+          "mae_mw": 398.789,
+          "rmse_mw": 547.02
+        },
+        "last_week": {
+          "mae_mw": 420.141,
+          "rmse_mw": 564.67
+        },
+        "blend_50_50": {
+          "mae_mw": 342.801,
+          "rmse_mw": 471.164
+        }
+      },
+      "test_selected_baseline": {
+        "mae_mw": 398.789,
+        "rmse_mw": 547.02
+      }
+    },
+    "30": {
+      "validation_models": {
+        "calendar_and_demand": {
+          "mae_mw": 573.287,
+          "rmse_mw": 805.85
+        },
+        "calendar_demand_weather": {
+          "mae_mw": 555.71,
+          "rmse_mw": 770.652
+        }
+      },
+      "selected_model": "calendar_demand_weather",
+      "validation_baselines": {
+        "yesterday": {
+          "mae_mw": 462.407,
+          "rmse_mw": 594.359
+        },
+        "last_week": {
+          "mae_mw": 815.021,
+          "rmse_mw": 1058.083
+        },
+        "blend_50_50": {
+          "mae_mw": 539.717,
+          "rmse_mw": 683.587
+        }
+      },
+      "selected_baseline": "yesterday",
+      "test_lightgbm": {
+        "mae_mw": 309.803,
+        "rmse_mw": 416.919
+      },
+      "test_baselines": {
+        "yesterday": {
+          "mae_mw": 404.352,
+          "rmse_mw": 553.172
+        },
+        "last_week": {
+          "mae_mw": 425.205,
+          "rmse_mw": 570.087
+        },
+        "blend_50_50": {
+          "mae_mw": 348.27,
+          "rmse_mw": 477.988
+        }
+      },
+      "test_selected_baseline": {
+        "mae_mw": 404.352,
+        "rmse_mw": 553.172
+      }
+    },
+    "60": {
+      "validation_models": {
+        "calendar_and_demand": {
+          "mae_mw": 587.881,
+          "rmse_mw": 824.003
+        },
+        "calendar_demand_weather": {
+          "mae_mw": 574.786,
+          "rmse_mw": 804.704
+        }
+      },
+      "selected_model": "calendar_demand_weather",
+      "validation_baselines": {
+        "yesterday": {
+          "mae_mw": 480.568,
+          "rmse_mw": 615.27
+        },
+        "last_week": {
+          "mae_mw": 824.292,
+          "rmse_mw": 1068.65
+        },
+        "blend_50_50": {
+          "mae_mw": 553.503,
+          "rmse_mw": 700.764
+        }
+      },
+      "selected_baseline": "yesterday",
+      "test_lightgbm": {
+        "mae_mw": 315.615,
+        "rmse_mw": 422.576
+      },
+      "test_baselines": {
+        "yesterday": {
+          "mae_mw": 423.666,
+          "rmse_mw": 573.162
+        },
+        "last_week": {
+          "mae_mw": 441.557,
+          "rmse_mw": 588.566
+        },
+        "blend_50_50": {
+          "mae_mw": 367.298,
+          "rmse_mw": 500.491
+        }
+      },
+      "test_selected_baseline": {
+        "mae_mw": 423.666,
+        "rmse_mw": 573.162
+      }
+    }
+  }
+}
