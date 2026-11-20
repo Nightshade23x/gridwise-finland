@@ -1,0 +1,39 @@
+{
+  "purpose": "Sensitivity analysis of yesterday-persistence predictions to assumed observation publication delays",
+  "target_horizon_hours": 24,
+  "assumption": "A buffer of B minutes permits demand measurements only at or before target timestamp minus 24h minus B; this is not a measurement of actual publication latency.",
+  "evaluation_start_utc": "2026-07-01T00:00:00+00:00",
+  "evaluation_end_exclusive_utc": "2026-11-01T00:00:00+00:00",
+  "requested_intervals": 11808,
+  "common_paired_intervals": 11802,
+  "buffers_minutes": [
+    0,
+    15,
+    30,
+    60,
+    120
+  ],
+  "metrics": {
+    "0": {
+      "mae_mw": 396.96,
+      "rmse_mw": 544.121
+    },
+    "15": {
+      "mae_mw": 398.615,
+      "rmse_mw": 546.814
+    },
+    "30": {
+      "mae_mw": 404.236,
+      "rmse_mw": 552.991
+    },
+    "60": {
+      "mae_mw": 423.587,
+      "rmse_mw": 573.002
+    },
+    "120": {
+      "mae_mw": 479.23,
+      "rmse_mw": 631.504
+    }
+  },
+  "caution": "Historical target and input values can have revisions; this is not a point-in-time replay of actual API vintages. The previously reported LightGBM score does not account for these buffers."
+}
