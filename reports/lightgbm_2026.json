@@ -1,0 +1,76 @@
+{
+  "task": "Rolling 24-hour-ahead 15-minute Finnish demand prediction",
+  "data_availability_assumptions": [
+    "Historical demand is assumed available immediately at timestamp t - 24h; actual Fingrid release latency must be checked before deployment.",
+    "Weather features use ERA5 observations from at least 14 days before each target; ERA5 is a reanalysis product and not an archived weather forecast issued at prediction time.",
+    "Historical reanalysis vintages are not reconstructed; operational forecasts need a point-in-time weather provider."
+  ],
+  "train_end_exclusive_utc": "2026-01-01T00:00:00+00:00",
+  "validation_start_utc": "2026-01-01T00:00:00+00:00",
+  "test_start_utc": "2026-07-01T00:00:00+00:00",
+  "test_end_exclusive_utc": "2026-11-01T00:00:00+00:00",
+  "selection_rule": "Choose smallest validation MAE; test unused until selection and refitting",
+  "feature_sets": {
+    "calendar_and_demand": [
+      "local_hour_sin",
+      "local_hour_cos",
+      "weekday_sin",
+      "weekday_cos",
+      "year_day_sin",
+      "year_day_cos",
+      "is_weekend",
+      "local_utc_offset_hours",
+      "demand_lag_24h",
+      "demand_lag_48h",
+      "demand_lag_72h",
+      "demand_lag_7d",
+      "demand_24h_history_mean",
+      "demand_7d_history_mean"
+    ],
+    "calendar_demand_weather": [
+      "local_hour_sin",
+      "local_hour_cos",
+      "weekday_sin",
+      "weekday_cos",
+      "year_day_sin",
+      "year_day_cos",
+      "is_weekend",
+      "local_utc_offset_hours",
+      "demand_lag_24h",
+      "demand_lag_48h",
+      "demand_lag_72h",
+      "demand_lag_7d",
+      "demand_24h_history_mean",
+      "demand_7d_history_mean",
+      "temp_helsinki_c_lag_14d",
+      "temp_turku_c_lag_14d",
+      "temp_tampere_c_lag_14d",
+      "temp_oulu_c_lag_14d",
+      "temp_rovaniemi_c_lag_14d"
+    ]
+  },
+  "training_rows": 66831,
+  "validation_rows": 17376,
+  "validation_scores": {
+    "calendar_and_demand": {
+      "mae_mw": 569.506,
+      "rmse_mw": 795.761
+    },
+    "calendar_demand_weather": {
+      "mae_mw": 541.204,
+      "rmse_mw": 748.896
+    }
+  },
+  "selected_candidate": "calendar_demand_weather",
+  "refit_pretest_rows": 84207,
+  "test_rows": 11803,
+  "test_model": {
+    "mae_mw": 310.021,
+    "rmse_mw": 419.15
+  },
+  "reference_baseline_name": "yesterday",
+  "test_selected_baseline_same_rows": {
+    "mae_mw": 397.049,
+    "rmse_mw": 544.174
+  }
+}

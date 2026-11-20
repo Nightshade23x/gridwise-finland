@@ -12,3 +12,6 @@ data/*.png
 data/processed/*.csv
 data/model_outputs/*.csv
 data/model_outputs/*.png
+
+# Model files and machine-generated forecast outputs
+data/model_outputs/*.txt
