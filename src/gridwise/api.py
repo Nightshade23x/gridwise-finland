@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import date
 from functools import lru_cache
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -99,7 +100,7 @@ def _all_metrics(root: Path, test: pd.DataFrame) -> tuple[dict, int]:
 
 
 def create_app(root: Path | None = None) -> FastAPI:
-    project_root = Path(root) if root is not None else ROOT
+    project_root = Path(root) if root is not None else Path(os.environ.get("GRIDWISE_PROJECT_ROOT", str(ROOT)))
     api = FastAPI(title="GridWise Finland", version="0.2.0", description="Historical electricity consumption and retrospective ML evaluation. Not a live forecast.")
     api.mount("/static", StaticFiles(directory=str(DASHBOARD)), name="static")
 

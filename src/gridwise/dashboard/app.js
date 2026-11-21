@@ -37,7 +37,15 @@ function svgElement(tag, attrs = {}, text = "") {
   return e;
 }
 
-function drawChart(points, kind) {
+/** Render distinct UTC ticks for short or long chart windows. */
+function axisTickLabel(timestamp, spanMs, interval) {
+  const iso = new Date(timestamp).toISOString();
+  if (interval === "day" || spanMs >= 6 * 86400000) return iso.slice(0, 10);
+  if (spanMs <= 36 * 3600000) return iso.slice(11, 16);
+  return `${iso.slice(5, 10)} ${iso.slice(11, 16)}`;
+}
+
+function drawChart(points, kind, interval="hour") {
   const svg = $("chart"); svg.replaceChildren();
   const legend = $("legend"); legend.replaceChildren();
   const cols = kind === "test" ? S : [{key:"demand_mw",label:"Measured demand",color:"#80c8ff"}];
@@ -67,10 +75,14 @@ function drawChart(points, kind) {
     svg.append(svgElement("line",{x1:left,x2:W-right,y1:y,y2:y,class:"chart-grid"}));
     svg.append(svgElement("text",{x:left-12,y:y+4,"text-anchor":"end",class:"chart-axis"},Math.round(yMax-i*(yMax-yMin)/5).toLocaleString()));
   }
-  for(let i=0;i<=6;i++) {
-    const t=xMin+i*(xMax-xMin)/6;
-    const stamp=new Date(t).toISOString().slice(0,10);
-    svg.append(svgElement("text",{x:left+i*plotW/6,y:H-15,"text-anchor":"middle",class:"chart-axis"},stamp));
+  // Tick positions are actual observations. This avoids duplicate date labels
+  // for daily charts and uses hour labels for a single-day 15-minute view.
+  const tickCount=Math.min(7, points.length);
+  for(let i=0;i<tickCount;i++) {
+    const idx=tickCount===1?0:Math.round(i*(points.length-1)/(tickCount-1));
+    const t=xValues[idx];
+    const stamp=axisTickLabel(t,xMax-xMin,interval);
+    svg.append(svgElement("text",{x:X(t),y:H-15,"text-anchor":"middle",class:"chart-axis"},stamp));
   }
   for(const series of cols) {
     // Separate missing-data segments instead of drawing misleading connecting lines.
@@ -103,7 +115,10 @@ function drawChart(points, kind) {
     const p=points[idx],x=X(xValues[idx]);
     crosshair.setAttribute("x1",String(x));crosshair.setAttribute("x2",String(x));crosshair.setAttribute("visibility","visible");
     tooltip.replaceChildren();
-    const first=document.createElement("strong");first.textContent=new Date(p.timestamp_utc).toISOString().replace("T"," ").slice(0,16)+" UTC";tooltip.append(first);
+    const first=document.createElement("strong");
+    const stamp=new Date(p.timestamp_utc).toISOString();
+    first.textContent=interval==="day"?`${stamp.slice(0,10)} (UTC day)`:`${stamp.replace("T"," ").slice(0,16)} UTC`;
+    tooltip.append(first);
     cols.forEach(s=>{const line=document.createElement("div");line.textContent=`${s.label}: ${fmt(p[s.key])} MW`;line.style.color=s.color;tooltip.append(line);});
     tooltip.hidden=false;
     const px=(x/W)*rect.width;
@@ -129,12 +144,31 @@ function showInsights(data) {
   $("insights-implication").textContent = data.implication;
 }
 
+// Export precisely the points and resolution currently displayed, including
+// missing values as blank cells. The downloaded file is never sent elsewhere.
+let currentSeries = null;
+function exportChartCSV() {
+  if (!currentSeries || !currentSeries.points.length) return;
+  const columns=currentSeries.kind === "test" ? ["timestamp_utc", "actual_mw", "model_mw", "selected_baseline_mw"] : ["timestamp_utc", "demand_mw"];
+  const escapeCSV=value=>value===null||value===undefined?"":`"${String(value).replaceAll('"','""')}"`;
+  const csv=[columns.join(","), ...currentSeries.points.map(p=>columns.map(k=>escapeCSV(p[k])).join(","))].join("\r\n")+"\r\n";
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement("a");
+  link.href=url;
+  link.download=`gridwise_${currentSeries.kind}_${currentSeries.startDate}_${currentSeries.endDate}_${currentSeries.interval}.csv`;
+  document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+$("download-csv").addEventListener("click",exportChartCSV);
+
 let chartRequestSequence = 0;
 async function updateChart(event) {
   event?.preventDefault();
   const requestId=++chartRequestSequence;
   notice("");
   const button=$("apply");button.disabled=true;button.textContent="Loading…";
+  $("download-csv").disabled=true;
   $("insights-headline").textContent="Calculating insights for your selection…";
   try {
     const params=new URLSearchParams({kind:$("kind").value,start:$("start").value,end:$("end").value,interval:$("interval").value});
@@ -144,12 +178,16 @@ async function updateChart(event) {
       loadJSON(`/api/insights?${insightParams}`)
     ]);
     if(requestId!==chartRequestSequence)return;
-    drawChart(data.points,data.kind);
+    drawChart(data.points,data.kind,data.interval);
+    currentSeries={...data,startDate:params.get("start"),endDate:params.get("end")};
+    $("download-csv").disabled=!data.points.length;
     showInsights(insights);
     $("point-count").textContent=`${data.count.toLocaleString()} ${data.interval} observations shown`;
   } catch(error) {
     if(requestId===chartRequestSequence){
       notice(error.message);
+      currentSeries=null;
+      $("download-csv").disabled=true;
       $("insights-headline").textContent="Unable to calculate insights for this selection.";
       $("insights-metrics").replaceChildren();
       $("insights-details").replaceChildren();

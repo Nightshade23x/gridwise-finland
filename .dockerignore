@@ -1,0 +1,18 @@
+# Keep datasets, API keys, virtualenvs, and Git internals out of the image.
+.git
+.github
+.env
+.env.*
+!.env.example
+.venv
+__pycache__
+.pytest_cache
+*.pyc
+*.egg-info
+build
+dist
+data
+reports
+docs
+tests
+*.zip

@@ -12,3 +12,11 @@
 .insights-details li+li{margin-top:7px}
 .insights-implication{background:#102c37;border-left:3px solid #5ed1bd;border-radius:4px;padding:12px 15px;color:#b7d6dc;font-size:12px;line-height:1.6;margin:18px 0 0}
 @media(max-width:600px){.insights-metrics{grid-template-columns:1fr}.period-insights .panelhead{align-items:flex-start;flex-direction:column}.insight-metric strong{font-size:19px}}
+
+/* Phase 10: responsive chart controls and accessible export. */
+.chart-toolbar{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 11px}
+.chart-toolbar .legend{margin:0}
+.export-button{background:#10283b;color:#a9e9dc;border:1px solid #386277;border-radius:8px;padding:9px 13px;font:inherit;font-size:12px;cursor:pointer}
+.export-button:hover:not(:disabled){border-color:#6fd6be;background:#16354a}
+.export-button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:600px){.chart-toolbar{align-items:flex-start}.chart-axis{font-size:11px}}

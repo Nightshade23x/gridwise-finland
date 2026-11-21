@@ -35,7 +35,10 @@
         <label>Resolution<select id="interval"><option value="hour">Hourly mean</option><option value="15min">15 minutes</option><option value="day">Daily mean</option></select></label>
         <button type="submit" id="apply">Apply</button>
       </form>
-      <div class="legend" id="legend" aria-label="Chart series"></div>
+      <div class="chart-toolbar">
+        <div class="legend" id="legend" aria-label="Chart series"></div>
+        <button id="download-csv" type="button" class="export-button" disabled>Export visible CSV</button>
+      </div>
       <div class="chart-container" id="chart-area"><svg id="chart" viewBox="0 0 960 380" role="img" aria-label="Electricity demand time-series plot"></svg><div id="tooltip" class="tooltip" hidden></div></div>
       <div class="footnote"><span id="point-count">Choose a date range to explore data</span><span>Missing source values are not imputed</span></div>
       <section class="period-insights" id="period-insights" aria-live="polite" aria-label="Insights for the selected period">
