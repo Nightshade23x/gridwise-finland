@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101a2b">
+  <title>GridWise Finland | Demand Intelligence</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brandmark" aria-hidden="true">∿</span><div><strong>GridWise</strong><small>FINLAND · ENERGY INTELLIGENCE</small></div></div>
+    <span class="status"><span class="status-dot"></span> Historical research dashboard</span>
+  </header>
+  <main class="layout">
+    <section class="intro">
+      <p class="eyebrow">ELECTRICITY DEMAND FORECASTING</p>
+      <h1>See the grid. Understand the demand.</h1>
+      <p>Explore Finland's national electricity consumption and compare LightGBM forecasts with historical baselines. All predictions shown are retrospective evaluations, not live forecasts.</p>
+    </section>
+    <div id="notice" class="notice" role="alert" hidden></div>
+    <section class="stats" aria-label="Summary metrics">
+      <article class="stat"><span>LightGBM MAE</span><strong id="model-mae">—</strong><small>Held-out test · MW</small></article>
+      <article class="stat"><span>Selected baseline MAE</span><strong id="baseline-mae">—</strong><small>Same evaluation timestamps · MW</small></article>
+      <article class="stat"><span>MAE reduction</span><strong id="improvement">—</strong><small>Relative to selected baseline</small></article>
+      <article class="stat"><span>Source data coverage</span><strong id="coverage">—</strong><small>Historical 15-minute measurements</small></article>
+    </section>
+    <section class="panel explore">
+      <div class="panelhead"><div><p class="eyebrow">EXPLORE</p><h2>Demand over time</h2></div><span class="tag">UTC timestamps</span></div>
+      <form id="filters" class="filters">
+        <label>View<select id="kind"><option value="test">Model comparison</option><option value="history">Historical demand</option></select></label>
+        <label>From<input id="start" type="date" value="2026-07-01" required></label>
+        <label>Until <span class="hint">(exclusive)</span><input id="end" type="date" value="2026-07-08" required></label>
+        <label>Resolution<select id="interval"><option value="hour">Hourly mean</option><option value="15min">15 minutes</option><option value="day">Daily mean</option></select></label>
+        <button type="submit" id="apply">Apply</button>
+      </form>
+      <div class="legend" id="legend" aria-label="Chart series"></div>
+      <div class="chart-container" id="chart-area"><svg id="chart" viewBox="0 0 960 380" role="img" aria-label="Electricity demand time-series plot"></svg><div id="tooltip" class="tooltip" hidden></div></div>
+      <div class="footnote"><span id="point-count">Choose a date range to explore data</span><span>Missing source values are not imputed</span></div>
+      <section class="period-insights" id="period-insights" aria-live="polite" aria-label="Insights for the selected period">
+        <div class="panelhead"><div><p class="eyebrow">PERIOD INSIGHTS</p><h2>What this period shows</h2></div><span class="tag">Computed from 15-minute data</span></div>
+        <p id="insights-headline" class="insights-headline">Loading results for your selection…</p>
+        <div id="insights-metrics" class="insights-metrics"></div>
+        <ul id="insights-details" class="insights-details"></ul>
+        <p id="insights-implication" class="insights-implication"></p>
+      </section>
+    </section>
+    <section class="bottom-grid">
+      <article class="panel"><p class="eyebrow">THE EXPERIMENT</p><h2>24-hour-ahead forecasting</h2><p>The model was trained on earlier demand and delayed historical weather features, with a chronological validation and test split.</p><p class="muted">The test period has been analyzed during development. Results are historical diagnostics, not independent live-performance claims.</p></article>
+      <article class="panel"><p class="eyebrow">API ACCESS</p><h2>Built to be inspectable</h2><p>Every chart uses the same read-only API that other clients can access. Open the interactive documentation to inspect the JSON endpoints.</p><a class="textlink" href="/docs">Explore API documentation →</a></article>
+    </section>
+    <footer>GRIDWISE FINLAND <span>·</span> Research dashboard <span>·</span> Historical data, no live forecasts</footer>
+  </main>
+</body>
+</html>
