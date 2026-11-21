@@ -17,6 +17,32 @@ async function loadJSON(url) {
 function notice(message) { $("notice").textContent = message; $("notice").hidden = !message; }
 function fmt(n, digits=1) { return typeof n === "number" ? n.toLocaleString("en-US",{maximumFractionDigits:digits}) : "—"; }
 
+let recentLatestUTC = null;
+function recentDateRange() {
+  const end = recentLatestUTC ? new Date(recentLatestUTC) : new Date();
+  const exclusive = new Date(Date.UTC(end.getUTCFullYear(),end.getUTCMonth(),end.getUTCDate()+1));
+  const start = new Date(exclusive.getTime()-7*86400000);
+  return [start.toISOString().slice(0,10),exclusive.toISOString().slice(0,10)];
+}
+async function updateRecentStatus() {
+  try {
+    const status = await loadJSON("/api/refresh-status");
+    recentLatestUTC = status.latest_measurement_utc;
+    const format = value => value ? new Date(value).toISOString().replace("T"," ").slice(0,16)+" UTC" : "—";
+    $("recent-latest").textContent = format(status.latest_measurement_utc) +
+      (typeof status.latest_demand_mw === "number" ? ` · ${fmt(status.latest_demand_mw)} MW` : "");
+    $("recent-refresh").textContent = format(status.last_success_utc);
+    $("recent-state").textContent = status.status === "ok" ? "Last refresh succeeded" :
+      status.status === "failed" ? "Last refresh failed" : "Not configured";
+    $("recent-note").textContent = status.status === "ok"
+      ? `${fmt(status.stored_rows,0)} measured intervals stored. This does not represent a prediction or verified real-time feed.`
+      : status.status === "failed" ? "The last download failed; previously stored measurements remain available. Check the refresh command output."
+      : "Run the standalone data-refresh command to enable recent measurements.";
+  } catch(error) {
+    $("recent-state").textContent = "Status unavailable";
+    $("recent-note").textContent = "Unable to read refresh status.";
+  }
+}
 async function updateSummary() {
   try {
     const data = await loadJSON("/api/summary");
@@ -200,8 +226,14 @@ async function updateChart(event) {
 
 $("filters").addEventListener("submit",updateChart);
 $("kind").addEventListener("change",()=>{
-  if($("kind").value==="history"){$("start").value="2024-01-01";$("end").value="2024-01-08";}
-  else{$("start").value="2026-07-01";$("end").value="2026-07-08";}
+  if($("kind").value === "history") {$("start").value="2024-01-01";$("end").value="2024-01-08";}
+  else if($("kind").value === "recent") {[$("start").value,$("end").value] = recentDateRange();}
+  else {$("start").value="2026-07-01";$("end").value="2026-07-08";}
   updateChart();
 });
-updateSummary();updateChart();
+$("show-recent").addEventListener("click",()=>{
+  $("kind").value="recent";
+  $("kind").dispatchEvent(new Event("change"));
+  $("filters").scrollIntoView({behavior:"smooth",block:"center"});
+});
+updateSummary();updateRecentStatus();updateChart();

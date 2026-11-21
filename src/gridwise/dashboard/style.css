@@ -20,3 +20,12 @@
 .export-button:hover:not(:disabled){border-color:#6fd6be;background:#16354a}
 .export-button:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:600px){.chart-toolbar{align-items:flex-start}.chart-axis{font-size:11px}}
+
+/* Phase 11: independent recent-measurements panel. */
+.latest-panel{margin:0 0 22px}
+.recent-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:24px}
+.recent-row>div{background:#0b1929;border:1px solid #2a4054;border-radius:10px;padding:14px}
+.recent-label{display:block;color:#90a9c0;font-size:12px;margin-bottom:7px}
+.recent-row strong{display:block;font-size:14px;color:#eef7ff;overflow-wrap:anywhere}
+.recent-note{color:#97b0c2;font-size:13px;line-height:1.6;margin:18px 0 14px}
+@media(max-width:680px){.recent-row{grid-template-columns:1fr}.latest-panel .panelhead{align-items:flex-start;flex-direction:column}}

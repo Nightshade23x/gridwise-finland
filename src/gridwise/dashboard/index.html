@@ -26,10 +26,20 @@
       <article class="stat"><span>MAE reduction</span><strong id="improvement">—</strong><small>Relative to selected baseline</small></article>
       <article class="stat"><span>Source data coverage</span><strong id="coverage">—</strong><small>Historical 15-minute measurements</small></article>
     </section>
+    <section class="panel latest-panel" aria-label="Latest measured electricity demand">
+      <div class="panelhead"><div><p class="eyebrow">RECENT FINGRID DATA</p><h2>Latest measured demand</h2></div><span class="tag">Measurements only · No live forecasts</span></div>
+      <div class="recent-row">
+        <div><span class="recent-label">Newest observation</span><strong id="recent-latest">Not loaded yet</strong></div>
+        <div><span class="recent-label">Last successful refresh</span><strong id="recent-refresh">—</strong></div>
+        <div><span class="recent-label">Refresh status</span><strong id="recent-state">Not configured</strong></div>
+      </div>
+      <p class="recent-note" id="recent-note">Run the standalone data-refresh command to enable recent measurements.</p>
+      <button class="export-button" type="button" id="show-recent">View recent demand</button>
+    </section>
     <section class="panel explore">
       <div class="panelhead"><div><p class="eyebrow">EXPLORE</p><h2>Demand over time</h2></div><span class="tag">UTC timestamps</span></div>
       <form id="filters" class="filters">
-        <label>View<select id="kind"><option value="test">Model comparison</option><option value="history">Historical demand</option></select></label>
+        <label>View<select id="kind"><option value="test">Model comparison</option><option value="history">Historical demand</option><option value="recent">Recent measurements</option></select></label>
         <label>From<input id="start" type="date" value="2026-07-01" required></label>
         <label>Until <span class="hint">(exclusive)</span><input id="end" type="date" value="2026-07-08" required></label>
         <label>Resolution<select id="interval"><option value="hour">Hourly mean</option><option value="15min">15 minutes</option><option value="day">Daily mean</option></select></label>

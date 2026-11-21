@@ -15,3 +15,7 @@ data/model_outputs/*.png
 
 # Model files and machine-generated forecast outputs
 data/model_outputs/*.txt
+
+# Refreshed measurements, status and optional scheduler logs.
+data/live/*
+!data/live/.gitkeep

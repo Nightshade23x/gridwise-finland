@@ -42,3 +42,19 @@ Source: [Fingrid Open Data](https://data.fingrid.fi/en/datasets/124), dataset 12
 2. Add weather data, create temporal features, and measure simple seasonal baselines.
 3. Train and backtest forecasting models with chronological splits.
 4. Add price/carbon signals, scheduling recommendations, and a deployed API/dashboard.
+
+## Refresh newer measured consumption (Phase 11)
+
+The refresh worker is separate from model training and does not modify any historical model inputs:
+
+```powershell
+.\.venv\Scripts\python.exe -m gridwise.refresh
+```
+
+With the dashboard in Docker, the one-shot equivalent is:
+
+```powershell
+docker compose --profile refresh run --build --rm refresh
+```
+
+Refresh status and recent observations are available through the web dashboard and `/api/refresh-status`. See [Phase 11 instructions](docs/phase11-incremental-refresh.md) for setup, limits, and optional Windows scheduling.

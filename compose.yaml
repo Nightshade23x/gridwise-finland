@@ -8,6 +8,7 @@ services:
     volumes:
       - ./data/processed:/app/data/processed:ro
       - ./data/model_outputs:/app/data/model_outputs:ro
+      - ./data/live:/app/data/live:ro
     restart: unless-stopped
     healthcheck:
       test:
@@ -19,3 +20,15 @@ services:
       timeout: 8s
       retries: 3
       start_period: 20s
+
+  refresh:
+    profiles: ["refresh"]
+    build: .
+    env_file:
+      - .env
+    environment:
+      GRIDWISE_PROJECT_ROOT: /app
+    volumes:
+      - ./data/live:/app/data/live
+    command: ["python", "-m", "gridwise.refresh"]
+    restart: "no"
