@@ -64,6 +64,20 @@
       <button type="button" id="reload-verification" class="export-button">Reload verification</button>
       <p class="recent-note verification-caution">Partial scores cover observed target slots only, not the entire 24-hour horizon. Refresh measured data and run the separate verification command to update results. Local forecast archives are not independently timestamp-certified.</p>
     </section>
+    <section class="panel official-panel" aria-label="Benchmark against Fingrid official forecasts">
+      <div class="panelhead"><div><p class="eyebrow">PHASE 14 · OFFICIAL BENCHMARK</p><h2>GridWise versus Fingrid</h2></div><span class="tag">Point-in-time API capture</span></div>
+      <p class="recent-note" id="official-status" aria-live="polite">Checking for archived official forecasts…</p>
+      <div class="recent-row">
+        <div><span class="recent-label">Matched measurements</span><strong id="official-coverage">—</strong></div>
+        <div><span class="recent-label">GridWise MAE</span><strong id="official-gridwise-mae">—</strong></div>
+        <div><span class="recent-label">Fingrid MAE</span><strong id="official-fingrid-mae">—</strong></div>
+      </div>
+      <p class="recent-note" id="official-conclusion">Capture a fresh Fingrid forecast at the same time as GridWise to begin this comparison.</p>
+      <div class="verification-details"><div><h3>Errors by forecast horizon</h3><ul id="official-horizons" class="verification-list"></ul></div>
+      <div><h3>Archived official captures</h3><ul id="official-history" class="verification-list"></ul></div></div>
+      <button class="export-button" type="button" id="reload-official">Reload official benchmark</button>
+      <p class="recent-note verification-caution">Fingrid values are captured when queried, not reconstructed from a revised historical series. Capture time may differ from GridWise issuance. Only official targets that were still in the future at capture are compared. These snapshots are local evidence, not independently certified issuance records.</p>
+    </section>
     <section class="panel explore">
       <div class="panelhead"><div><p class="eyebrow">EXPLORE</p><h2>Demand over time</h2></div><span class="tag">UTC timestamps</span></div>
       <form id="filters" class="filters">

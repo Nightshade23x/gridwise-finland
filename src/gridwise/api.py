@@ -193,6 +193,33 @@ def create_app(root: Path | None = None) -> FastAPI:
         except (ValueError, KeyError, TypeError, OSError) as exc:
             raise HTTPException(503, "Forward verification artifact is invalid") from exc
 
+    @api.get("/api/official-benchmark")
+    def official_benchmark(limit: int = Query(20, ge=1, le=100)):
+        """Read a previously saved Phase 14 comparison; never fetch official forecasts live."""
+        path = project_root / "data/live/official_benchmark.json"
+        if not path.is_file():
+            return {"status": "no_snapshots", "snapshot_count": 0, "comparisons": [],
+                    "message": "Capture a new Fingrid forecast alongside GridWise using python -m gridwise.official capture"}
+        try:
+            report = json.loads(path.read_text(encoding="utf-8"))
+            results = report["comparisons"]
+            if report.get("schema_version") != 1 or report.get("status") not in ("ok", "no_snapshots") or not isinstance(results, list):
+                raise ValueError("Invalid official benchmark report")
+            for item in results:
+                if item.get("status") not in ("pending", "partial", "complete", "incomplete_source_data"):
+                    raise ValueError("Invalid comparison status")
+                if not (0 <= item["matched_targets"] <= item["eligible_targets"] <= item["official_future_targets"] <= 96):
+                    raise ValueError("Invalid matched observation counts")
+            fields = ("gridwise_forecast_id", "gridwise_issued_at_utc", "fingrid_captured_at_utc", "status",
+                      "official_future_targets", "eligible_targets", "matched_targets", "model", "fingrid",
+                      "reference_baseline", "model_mae_improvement_vs_fingrid_percent", "by_horizon")
+            return {"schema_version": 1, "status": report["status"], "verified_at_utc": report.get("verified_at_utc"),
+                    "snapshot_count": report.get("snapshot_count", 0),
+                    "comparisons": [{k: item.get(k) for k in fields} for item in results[:limit]],
+                    "note": report.get("note", "")}
+        except (ValueError, KeyError, OSError, TypeError) as exc:
+            raise HTTPException(503, "Official benchmark report is invalid") from exc
+
     @api.get("/api/summary")
     def summary():
         history = _load(project_root, "history")

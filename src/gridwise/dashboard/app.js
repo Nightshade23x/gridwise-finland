@@ -344,4 +344,46 @@ async function updateVerification() {
 }
 $("reload-verification").addEventListener("click", updateVerification);
 
-updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();
+// Phase 14: this screen reads a persisted official benchmark. Never fetch
+// dataset 166 in the browser, because its current values can be revised.
+async function updateOfficialBenchmark() {
+  const status=$('official-status'), history=$('official-history'), horizons=$('official-horizons');
+  status.textContent='Loading archived official benchmark…';
+  history.replaceChildren();horizons.replaceChildren();
+  try {
+    const r=await loadJSON('/api/official-benchmark');
+    if(r.status!=='ok' || !r.comparisons?.length) {
+      status.textContent=r.message||'No official snapshots captured yet.';
+      $('official-coverage').textContent='—';
+      $('official-gridwise-mae').textContent='—';
+      $('official-fingrid-mae').textContent='—';
+      $('official-conclusion').textContent='To start, issue a fresh GridWise forecast, then immediately run: python -m gridwise.official capture';
+      return;
+    }
+    const item=r.comparisons[0], stamp=val=>new Date(val).toISOString().replace('T',' ').slice(0,16)+' UTC';
+    status.textContent=`${r.snapshot_count} captured forecast(s) · Last checked ${stamp(r.verified_at_utc)} · Latest: ${item.status.replaceAll('_',' ')}`;
+    $('official-coverage').textContent=`${item.matched_targets} of ${item.official_future_targets} available target slots`;
+    $('official-gridwise-mae').textContent=item.model.mae_mw===null?'Pending':`${fmt(item.model.mae_mw)} MW`;
+    $('official-fingrid-mae').textContent=item.fingrid.mae_mw===null?'Pending':`${fmt(item.fingrid.mae_mw)} MW`;
+    const diff=item.model_mae_improvement_vs_fingrid_percent;
+    const answer=item.matched_targets===0?'Waiting for subsequent measured demand to score these forecasts.':
+      diff===null?'The Fingrid MAE is zero, so a relative improvement is not defined.':
+      diff>0?`GridWise had ${fmt(diff)}% lower MAE than Fingrid on matched targets.`:
+      diff<0?`GridWise had ${fmt(-diff)}% higher MAE than Fingrid on matched targets.`:
+      'Both forecasts had equal MAE on matched targets.';
+    $('official-conclusion').textContent=`${answer} Official values captured ${stamp(item.fingrid_captured_at_utc)}; matching measurements only. ${item.status==='complete'?'All eligible captured targets were scored.':'Incomplete horizon: results are preliminary.'}`;
+    for(const bucket of item.by_horizon) {
+      const li=document.createElement('li');
+      li.textContent=`${bucket.range}: ${bucket.matched_targets} measured · GridWise: ${bucket.model_mae_mw===null?'pending':fmt(bucket.model_mae_mw)+' MW'} · Fingrid: ${bucket.official_mae_mw===null?'pending':fmt(bucket.official_mae_mw)+' MW'}`;
+      horizons.append(li);
+    }
+    for(const past of r.comparisons.slice(0,6)) {
+      const li=document.createElement('li');
+      li.textContent=`${stamp(past.gridwise_issued_at_utc)} · ${past.status.replaceAll('_',' ')} · ${past.matched_targets}/${past.official_future_targets} scored`;
+      history.append(li);
+    }
+  } catch(e) {status.textContent=`Official benchmark unavailable: ${e.message}`;}
+}
+$('reload-official').addEventListener('click',updateOfficialBenchmark);
+
+updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();updateOfficialBenchmark();
