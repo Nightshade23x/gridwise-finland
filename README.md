@@ -58,3 +58,15 @@ docker compose --profile refresh run --build --rm refresh
 ```
 
 Refresh status and recent observations are available through the web dashboard and `/api/refresh-status`. See [Phase 11 instructions](docs/phase11-incremental-refresh.md) for setup, limits, and optional Windows scheduling.
+
+## Experimental next-24-hour forecasts (Phase 12)
+
+After refreshing recent Fingrid observations, generate a *separate*, conservative forward-forecast model:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,ml,app]"
+.\.venv\Scripts\python.exe -m gridwise.refresh
+.\.venv\Scripts\python.exe -m gridwise.forward
+```
+
+The dashboard serves the resulting forecast through `/api/forward-forecast` and labels it separately from the earlier historical backtest. The new model uses only demand data from target time minus 48h or earlier, so all 96 predictions can be generated at one issuance. It does **not** inherit the previous model's 310 MW MAE. See [Phase 12 notes](docs/phase12-forward-forecast.md).

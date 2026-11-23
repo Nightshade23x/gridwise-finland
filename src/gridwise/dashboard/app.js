@@ -236,4 +236,112 @@ $("show-recent").addEventListener("click",()=>{
   $("kind").dispatchEvent(new Event("change"));
   $("filters").scrollIntoView({behavior:"smooth",block:"center"});
 });
-updateSummary();updateRecentStatus();updateChart();
+// Phase 12: forward predictions are produced by a separate CLI worker.
+// The API only serves an immutable snapshot; do not conflate with backtests.
+async function updateForwardForecast() {
+  const svg = $("forward-chart");
+  svg.replaceChildren();
+  try {
+    const f = await loadJSON("/api/forward-forecast");
+    if (f.status !== "ok" || !Array.isArray(f.points) || f.points.length !== 96) {
+      $("forecast-status").textContent = f.message || "No forward forecast has been generated yet.";
+      return;
+    }
+    const dateText = value => new Date(value).toISOString().replace("T", " ").slice(0,16)+" UTC";
+    const hoursOld = (Date.now()-Date.parse(f.issued_at_utc))/3600000;
+    $("forecast-issued").textContent=dateText(f.issued_at_utc);
+    $("forecast-source").textContent=dateText(f.source_latest_measurement_utc);
+    $("forecast-range").textContent=`${fmt(Math.min(...f.points.map(p=>p.predicted_mw)),0)}–${fmt(Math.max(...f.points.map(p=>p.predicted_mw)),0)} MW`;
+    $("forecast-status").textContent=hoursOld>6
+      ? `Forecast generated ${fmt(hoursOld,1)} hours ago and may be stale. Refresh data and rerun the worker.`
+      : `96 forward-looking 15-minute predictions. These are unverified research forecasts, not measured demand.`;
+
+    const W=960,H=245,L=76,R=25,T=20,B=40,PW=W-L-R,PH=H-T-B;
+    const all=f.points.flatMap(p=>[p.predicted_mw,p.baseline_mw]).filter(Number.isFinite);
+    const lo=Math.min(...all),hi=Math.max(...all),pad=Math.max(150,(hi-lo)*0.13);
+    const min=Math.max(0,lo-pad),max=hi+pad;
+    const X=i=>L+i/(f.points.length-1)*PW;
+    const Y=value=>T+(max-value)/(max-min)*PH;
+    for(let i=0;i<=4;i++) {
+      const y=T+i*PH/4;
+      svg.append(svgElement("line",{x1:L,x2:W-R,y1:y,y2:y,class:"chart-grid"}));
+      svg.append(svgElement("text",{x:L-9,y:y+4,"text-anchor":"end",class:"chart-axis"},Math.round(max-i*(max-min)/4).toLocaleString()));
+    }
+    for(let i=0;i<=4;i++) {
+      const idx=i===4?95:i*24;
+      const stamp=new Date(f.points[idx].timestamp_utc).toISOString();
+      svg.append(svgElement("text",{x:X(idx),y:H-14,"text-anchor":"middle",class:"chart-axis"},stamp.slice(11,16)+" UTC"));
+    }
+    for(const [key,color] of [["predicted_mw","#59dfba"],["baseline_mw","#ffad66"]]) {
+      let path=[];
+      for(const [i,p] of f.points.entries()) {
+        if(Number.isFinite(p[key])) path.push(`${X(i).toFixed(1)},${Y(p[key]).toFixed(1)}`);
+        else {
+          if(path.length>1) svg.append(svgElement("polyline",{points:path.join(" "),class:"chart-line",stroke:color}));
+          path=[];
+        }
+      }
+      if(path.length>1)svg.append(svgElement("polyline",{points:path.join(" "),class:"chart-line",stroke:color}));
+    }
+  } catch(error) {
+    $("forecast-status").textContent=`Could not load forward forecast: ${error.message}`;
+  }
+}
+
+// Phase 13 verification is a saved report. The dashboard never trains or
+// verifies predictions in-browser. Missing values remain unscored.
+async function updateVerification() {
+  const label = $("verification-status");
+  label.textContent = "Loading verification report…";
+  const horizonList = $("verification-horizons");
+  const historyList = $("verification-history");
+  horizonList.replaceChildren(); historyList.replaceChildren();
+  try {
+    const response = await loadJSON("/api/forecast-verification");
+    if (response.status !== "ok" || !response.forecasts?.length) {
+      label.textContent = response.message || "No archived forecast has been verified yet.";
+      $("verification-coverage").textContent = "—";
+      $("verification-model-mae").textContent = "—";
+      $("verification-baseline-mae").textContent = "—";
+      $("verification-summary").textContent = "Run gridwise.verify after refreshing measurements to evaluate issued forecasts.";
+      return;
+    }
+    const f = response.forecasts[0];
+    const stamp = text => new Date(text).toISOString().replace("T", " ").slice(0,16) + " UTC";
+    label.textContent = `${response.forecast_count} archived issuance(s) · Last checked ${stamp(response.verified_at_utc)} · Latest issue ${stamp(f.issued_at_utc)} · ${f.status.replaceAll("_"," ")}`;
+    $("verification-coverage").textContent = `${f.matched_targets} of 96 targets`;
+    $("verification-model-mae").textContent = f.model.mae_mw === null ? "Pending" : `${fmt(f.model.mae_mw)} MW`;
+    $("verification-baseline-mae").textContent = f.baseline.mae_mw === null ? "Pending" : `${fmt(f.baseline.mae_mw)} MW`;
+    if (f.status === "pending") {
+      $("verification-summary").textContent = "The forecast is archived. Actual readings for its target window are not eligible yet; no accuracy score is available.";
+    } else if (!f.matched_targets) {
+      $("verification-summary").textContent = "Targets have passed, but no matching source readings have been retrieved. Refresh Fingrid data and re-run verification.";
+    } else {
+      const delta = f.mae_reduction_percent;
+      const outcome = delta === null ? "The baseline has zero measured error; relative comparison is unavailable." :
+        delta > 0 ? `LightGBM's MAE is ${fmt(delta)}% lower than the baseline on the matched targets.` :
+        delta < 0 ? `LightGBM's MAE is ${fmt(-delta)}% higher than the baseline on the matched targets.` :
+        "LightGBM and the baseline have equal MAE on the matched targets.";
+      const bias = f.model.bias_mw;
+      const biasLabel = bias > 0 ? `mean overprediction ${fmt(bias)} MW` :
+        bias < 0 ? `mean underprediction ${fmt(-bias)} MW` : "no net mean bias";
+      $("verification-summary").textContent = `${f.status === "complete" ? "All 96 targets verified." : "Preliminary/incomplete verification."} ${outcome} Model ${biasLabel}. ${f.missing_eligible_targets} eligible targets lack source observations.`;
+    }
+    for (const b of f.by_horizon) {
+      const item = document.createElement("li");
+      item.textContent = `${b.range} · ${b.matched}/${b.slots} measured · Model MAE: ${b.model_mae_mw === null ? "pending" : fmt(b.model_mae_mw)+" MW"} · Baseline: ${b.baseline_mae_mw === null ? "pending" : fmt(b.baseline_mae_mw)+" MW"}`;
+      horizonList.append(item);
+    }
+    for (const old of response.forecasts.slice(0,6)) {
+      const item = document.createElement("li");
+      item.textContent = `${stamp(old.issued_at_utc)} · ${old.status.replaceAll("_", " ")} · ${old.matched_targets}/96 matched · Model MAE: ${old.model.mae_mw === null ? "pending" : fmt(old.model.mae_mw)+" MW"}`;
+      historyList.append(item);
+    }
+  } catch(error) {
+    label.textContent = `Verification unavailable: ${error.message}`;
+    $("verification-summary").textContent = "Run gridwise.verify to regenerate the report.";
+  }
+}
+$("reload-verification").addEventListener("click", updateVerification);
+
+updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();

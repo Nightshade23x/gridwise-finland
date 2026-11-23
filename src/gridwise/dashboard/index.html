@@ -11,13 +11,13 @@
 <body>
   <header class="topbar">
     <div class="brand"><span class="brandmark" aria-hidden="true">∿</span><div><strong>GridWise</strong><small>FINLAND · ENERGY INTELLIGENCE</small></div></div>
-    <span class="status"><span class="status-dot"></span> Historical research dashboard</span>
+    <span class="status"><span class="status-dot"></span> Historical research dashboard · experimental forecasts</span>
   </header>
   <main class="layout">
     <section class="intro">
       <p class="eyebrow">ELECTRICITY DEMAND FORECASTING</p>
       <h1>See the grid. Understand the demand.</h1>
-      <p>Explore Finland's national electricity consumption and compare LightGBM forecasts with historical baselines. All predictions shown are retrospective evaluations, not live forecasts.</p>
+      <p>Explore Finland's electricity demand, compare historical model performance, and view separately generated experimental 24-hour forecasts. These predictions are not operational guidance.</p>
     </section>
     <div id="notice" class="notice" role="alert" hidden></div>
     <section class="stats" aria-label="Summary metrics">
@@ -35,6 +35,34 @@
       </div>
       <p class="recent-note" id="recent-note">Run the standalone data-refresh command to enable recent measurements.</p>
       <button class="export-button" type="button" id="show-recent">View recent demand</button>
+    </section>
+    <section class="panel forward-panel" aria-label="Experimental next 24-hour forecast">
+      <div class="panelhead"><div><p class="eyebrow">PHASE 12 · FORWARD FORECAST</p><h2>Upcoming 24-hour demand</h2></div><span class="tag">Experimental · Not grid advice</span></div>
+      <p class="recent-note" id="forecast-status">No forward forecast generated yet. Run the forecasting worker after refreshing recent measurements.</p>
+      <div class="forward-metrics">
+        <div><span class="recent-label">Issued at</span><strong id="forecast-issued">—</strong></div>
+        <div><span class="recent-label">Source observation</span><strong id="forecast-source">—</strong></div>
+        <div><span class="recent-label">Forecast demand range</span><strong id="forecast-range">—</strong></div>
+      </div>
+      <div class="forward-legend"><span class="model-line"></span>New LightGBM forecast <span class="base-line"></span>Historical reference baseline</div>
+      <div class="forward-chart-wrap"><svg id="forward-chart" viewBox="0 0 960 245" role="img" aria-label="Forward forecast demand chart"></svg></div>
+      <p class="recent-note">This model uses conservative historical demand inputs; it is <strong>not</strong> the model behind the historical 310 MW score. Results are not verified future performance.</p>
+    </section>
+    <section class="panel verification-panel" aria-label="Forward forecast accuracy verification">
+      <div class="panelhead"><div><p class="eyebrow">PHASE 13 · FORECAST VERIFICATION</p><h2>How accurate were our issued forecasts?</h2></div><span class="tag">Matched to later Fingrid measurements</span></div>
+      <p class="recent-note" id="verification-status" aria-live="polite">Loading verification report…</p>
+      <div class="recent-row">
+        <div><span class="recent-label">Matching actual readings</span><strong id="verification-coverage">—</strong></div>
+        <div><span class="recent-label">Forward LightGBM MAE</span><strong id="verification-model-mae">—</strong></div>
+        <div><span class="recent-label">Reference baseline MAE</span><strong id="verification-baseline-mae">—</strong></div>
+      </div>
+      <p class="recent-note" id="verification-summary">Scores will appear once new measurements match a previously issued prediction.</p>
+      <div class="verification-details">
+        <div><h3>Error by forecast horizon</h3><ul id="verification-horizons" class="verification-list"></ul></div>
+        <div><h3>Previous issued forecasts</h3><ul id="verification-history" class="verification-list"></ul></div>
+      </div>
+      <button type="button" id="reload-verification" class="export-button">Reload verification</button>
+      <p class="recent-note verification-caution">Partial scores cover observed target slots only, not the entire 24-hour horizon. Refresh measured data and run the separate verification command to update results. Local forecast archives are not independently timestamp-certified.</p>
     </section>
     <section class="panel explore">
       <div class="panelhead"><div><p class="eyebrow">EXPLORE</p><h2>Demand over time</h2></div><span class="tag">UTC timestamps</span></div>
@@ -63,7 +91,7 @@
       <article class="panel"><p class="eyebrow">THE EXPERIMENT</p><h2>24-hour-ahead forecasting</h2><p>The model was trained on earlier demand and delayed historical weather features, with a chronological validation and test split.</p><p class="muted">The test period has been analyzed during development. Results are historical diagnostics, not independent live-performance claims.</p></article>
       <article class="panel"><p class="eyebrow">API ACCESS</p><h2>Built to be inspectable</h2><p>Every chart uses the same read-only API that other clients can access. Open the interactive documentation to inspect the JSON endpoints.</p><a class="textlink" href="/docs">Explore API documentation →</a></article>
     </section>
-    <footer>GRIDWISE FINLAND <span>·</span> Research dashboard <span>·</span> Historical data, no live forecasts</footer>
+    <footer>GRIDWISE FINLAND <span>·</span> Research dashboard <span>·</span> Experimental forward forecasts are not operational predictions</footer>
   </main>
 </body>
 </html>

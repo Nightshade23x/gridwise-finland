@@ -1,4 +1,4 @@
-"""Read-only API for historical backtests and separately refreshed recent measurements.
+"""Read-only API for historical backtests, recent measurements, and experimental forward predictions.
 
 No forecasting or external requests occur inside the web-server process.
 """
@@ -103,7 +103,7 @@ def _all_metrics(root: Path, test: pd.DataFrame) -> tuple[dict, int]:
 
 def create_app(root: Path | None = None) -> FastAPI:
     project_root = Path(root) if root is not None else Path(os.environ.get("GRIDWISE_PROJECT_ROOT", str(ROOT)))
-    api = FastAPI(title="GridWise Finland", version="0.2.0", description="Historical electricity consumption and retrospective ML evaluation. Not a live forecast.")
+    api = FastAPI(title="GridWise Finland", version="0.2.0", description="Historical backtests, recent measurements, and experimental forward-looking demand forecast.")
     api.mount("/static", StaticFiles(directory=str(DASHBOARD)), name="static")
 
     @api.get("/", include_in_schema=False)
@@ -130,6 +130,68 @@ def create_app(root: Path | None = None) -> FastAPI:
             return {**{key: content.get(key) for key in fields}, "error_present": bool(content.get("error"))}
         except (ValueError, OSError) as exc:
             raise HTTPException(503, "Refresh status file is unreadable") from exc
+
+    @api.get("/api/forward-forecast")
+    def forward_forecast():
+        """Serve an independently generated forward artifact. No keys, training or network here."""
+        path = project_root / "data/live/forward_forecast_24h.json"
+        if not path.is_file():
+            return {"status": "not_generated", "points": [],
+                    "message": "Run python -m gridwise.forward after refreshing measured demand"}
+        try:
+            obj = json.loads(path.read_text(encoding="utf-8"))
+            points = obj["points"]
+            if obj.get("kind") != "experimental_forward_forecast" or obj.get("status") != "ok":
+                raise ValueError("Invalid forecast metadata")
+            if len(points) != 96 or int(obj.get("resolution_minutes", 0)) != 15:
+                raise ValueError("Expected 96 fifteen-minute targets")
+            stamps = pd.to_datetime([p["timestamp_utc"] for p in points], utc=True)
+            if stamps.hasnans or stamps.has_duplicates or not (stamps[1:] - stamps[:-1] == pd.Timedelta(minutes=15)).all():
+                raise ValueError("Forecast time grid is invalid")
+            values = np.asarray([p["predicted_mw"] for p in points], dtype=float)
+            if not np.isfinite(values).all() or (values < 0).any():
+                raise ValueError("Invalid forecast predictions")
+            # Only expose safe metadata, never any credentials or filesystem paths.
+            fields = ("kind", "status", "issued_at_utc", "first_target_utc", "last_target_utc",
+                      "source_latest_measurement_utc", "source_age_hours_at_issue",
+                      "resolution_minutes", "forecast_horizon_hours", "model",
+                      "selected_reference_baseline", "assumptions")
+            return {**{key: obj.get(key) for key in fields}, "points": points}
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            raise HTTPException(503, f"Forward forecast artifact is invalid: {exc}") from exc
+
+    @api.get("/api/forecast-verification")
+    def forecast_verification(limit: int = Query(20, ge=1, le=100)):
+        """Read saved forward-verification evidence; never compute it in the API."""
+        path = project_root / "data/live/forecast_verification.json"
+        if not path.is_file():
+            return {"status": "not_verified", "forecast_count": 0, "forecasts": [],
+                    "message": "Refresh measured demand, then run python -m gridwise.verify"}
+        try:
+            report = json.loads(path.read_text(encoding="utf-8"))
+            records = report["forecasts"]
+            if report.get("schema_version") != 1 or not isinstance(records, list):
+                raise ValueError("Unsupported verification report")
+            if report.get("status") not in ("ok", "no_forecasts"):
+                raise ValueError("Invalid verification status")
+            for entry in records:
+                if not isinstance(entry, dict) or entry.get("status") not in (
+                    "pending", "partial", "complete", "incomplete_source_data"):
+                    raise ValueError("Invalid forecast verification record")
+                if not (0 <= entry["matched_targets"] <= entry["eligible_targets"] <= 96):
+                    raise ValueError("Invalid coverage counts")
+                if not isinstance(entry.get("by_horizon"), list) or len(entry["by_horizon"]) != 4:
+                    raise ValueError("Missing horizon breakdown")
+            # Expose only reviewed result fields; never expose raw file paths or secrets.
+            top_fields = ("schema_version", "status", "verified_at_utc", "availability_buffer_minutes", "forecast_count")
+            entry_fields = ("forecast_id", "issued_at_utc", "first_target_utc", "last_target_utc", "status",
+                            "total_targets", "eligible_targets", "matched_targets", "missing_eligible_targets",
+                            "model", "baseline", "mae_reduction_percent", "by_horizon")
+            return {**{k: report.get(k) for k in top_fields},
+                    "forecasts": [{k: entry.get(k) for k in entry_fields} for entry in records[:limit]],
+                    "notes": report.get("notes", [])}
+        except (ValueError, KeyError, TypeError, OSError) as exc:
+            raise HTTPException(503, "Forward verification artifact is invalid") from exc
 
     @api.get("/api/summary")
     def summary():
