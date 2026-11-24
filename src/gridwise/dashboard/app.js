@@ -252,6 +252,12 @@ async function updateForwardForecast() {
     $("forecast-issued").textContent=dateText(f.issued_at_utc);
     $("forecast-source").textContent=dateText(f.source_latest_measurement_utc);
     $("forecast-range").textContent=`${fmt(Math.min(...f.points.map(p=>p.predicted_mw)),0)}–${fmt(Math.max(...f.points.map(p=>p.predicted_mw)),0)} MW`;
+    const selected = f.preferred_strategy;
+    $("forecast-selection").textContent = selected === "lightgbm"
+      ? "Validation favoured LightGBM over the reference baseline. Both curves remain visible; future accuracy is unverified."
+      : selected && selected === f.selected_reference_baseline
+      ? `Validation favoured the ${selected.replaceAll("_", " ")} reference over LightGBM. Treat the orange curve as the preferred candidate for this issuance; the green curve remains the experimental ML forecast.`
+      : "This forecast predates validation-based selection; both curves are experimental.";
     $("forecast-status").textContent=hoursOld>6
       ? `Forecast generated ${fmt(hoursOld,1)} hours ago and may be stale. Refresh data and rerun the worker.`
       : `96 forward-looking 15-minute predictions. These are unverified research forecasts, not measured demand.`;

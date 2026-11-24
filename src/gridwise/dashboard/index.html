@@ -42,10 +42,11 @@
       <div class="forward-metrics">
         <div><span class="recent-label">Issued at</span><strong id="forecast-issued">—</strong></div>
         <div><span class="recent-label">Source observation</span><strong id="forecast-source">—</strong></div>
-        <div><span class="recent-label">Forecast demand range</span><strong id="forecast-range">—</strong></div>
+        <div><span class="recent-label">LightGBM demand range</span><strong id="forecast-range">—</strong></div>
       </div>
       <div class="forward-legend"><span class="model-line"></span>New LightGBM forecast <span class="base-line"></span>Historical reference baseline</div>
       <div class="forward-chart-wrap"><svg id="forward-chart" viewBox="0 0 960 245" role="img" aria-label="Forward forecast demand chart"></svg></div>
+      <p class="recent-note" id="forecast-selection">The comparison is a research experiment; validation-based selection will appear after the next forecast issuance.</p>
       <p class="recent-note">This model uses conservative historical demand inputs; it is <strong>not</strong> the model behind the historical 310 MW score. Results are not verified future performance.</p>
     </section>
     <section class="panel verification-panel" aria-label="Forward forecast accuracy verification">

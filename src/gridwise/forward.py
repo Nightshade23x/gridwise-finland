@@ -36,6 +36,23 @@ FEATURES = [
 BASELINES = ("lag_48h", "lag_7d", "blend_50_50")
 
 
+def select_forecast_by_validation(scores: dict, selected_baseline: str) -> str:
+    """Select a production-facing candidate before evaluating future outcomes.
+
+    Returns 'lightgbm' or the validation-selected reference name. A validation
+    gate is not a guarantee of generalization and must never look at test data.
+    """
+    if selected_baseline not in BASELINES:
+        raise ValueError("Unknown reference baseline")
+    model_mae = float(scores["lightgbm"]["mae_mw"])
+    baseline_mae = float(scores[selected_baseline]["mae_mw"])
+    if not (np.isfinite(model_mae) and np.isfinite(baseline_mae) and
+            model_mae >= 0 and baseline_mae >= 0):
+        raise ValueError("Validation MAEs must be finite and nonnegative")
+    # On ties, prefer the more transparent reference baseline.
+    return "lightgbm" if model_mae < baseline_mae else selected_baseline
+
+
 def utc_timestamp(value: datetime | pd.Timestamp) -> pd.Timestamp:
     t = pd.Timestamp(value)
     if t.tzinfo is None:
@@ -120,7 +137,7 @@ def issue_forecast(
     issue = utc_timestamp(issue_time)
     if estimators < 1 or max_data_age_hours <= 0:
         raise ValueError("Invalid estimators or max_data_age_hours")
-    first_target = issue.ceil("15min")
+    first_target = issue.floor("15min") + INTERVAL  # Always strictly after issuance, even on grid
     known = combined.copy()
     known["timestamp_utc"] = pd.to_datetime(known["timestamp_utc"], utc=True)
     # Guard against inadvertent records dated in the future.
@@ -160,6 +177,9 @@ def issue_forecast(
         **{name: errors(validation["demand_mw"], validation[name]) for name in BASELINES},
     }
     selected_baseline = min(BASELINES, key=lambda name: validation_scores[name]["mae_mw"])
+    # A forward model can be worse than a simple reference. Never present it as
+    # the preferred forecast unless its *validation* MAE beats that reference.
+    preferred_strategy = select_forecast_by_validation(validation_scores, selected_baseline)
 
     november = None
     if evaluate_november:
@@ -191,10 +211,14 @@ def issue_forecast(
     predicted = trained.predict(horizon[FEATURES])
     if not np.isfinite(predicted).all() or (predicted < 0).any():
         raise ValueError("Invalid forward model output")
+    reference = horizon[selected_baseline].to_numpy(dtype=float)
     points = pd.DataFrame({
         "timestamp_utc": horizon["timestamp_utc"].to_numpy(),
         "predicted_mw": np.round(predicted, 3),
-        "baseline_mw": np.round(horizon[selected_baseline].to_numpy(dtype=float), 3),
+        "baseline_mw": np.round(reference, 3),
+        # Do not change the meaning of predicted_mw, which is already used by
+        # immutable Phase 13/14 forecast verification. This is separate advice.
+        "preferred_mw": np.round(predicted if preferred_strategy == "lightgbm" else reference, 3),
     })
     payload = {
         "kind": "experimental_forward_forecast",
@@ -208,6 +232,8 @@ def issue_forecast(
         "forecast_horizon_hours": 24,
         "model": "LightGBM demand-only, conservative 48h input lag",
         "selected_reference_baseline": selected_baseline,
+        "preferred_strategy": preferred_strategy,
+        "preferred_validation_mae_mw": validation_scores[preferred_strategy]["mae_mw"],
         "validation_scores": validation_scores,
         "preliminary_november_evaluation": november,
         "training_observations": int(len(fit_rows)),
@@ -219,7 +245,7 @@ def issue_forecast(
         ],
         "points": [
             {"timestamp_utc": r.timestamp_utc.isoformat(), "predicted_mw": float(r.predicted_mw),
-             "baseline_mw": float(r.baseline_mw)}
+             "baseline_mw": float(r.baseline_mw), "preferred_mw": float(r.preferred_mw)}
             for r in points.itertuples(index=False)
         ],
     }
@@ -254,6 +280,8 @@ def main() -> None:
     print(f"Latest measured demand: {report['source_latest_measurement_utc']}")
     print(f"Forward targets: {len(points)} quarter-hour intervals")
     print(f"Baseline: {report['selected_reference_baseline']}")
+    print(f"Validation-preferred forecast: {report['preferred_strategy']} "
+          "(separate from saved LightGBM prediction for verification)")
     print(f"Validation MAE: model={report['validation_scores']['lightgbm']['mae_mw']:.1f} MW; "
           f"reference={report['validation_scores'][report['selected_reference_baseline']]['mae_mw']:.1f} MW")
     if report["preliminary_november_evaluation"]:

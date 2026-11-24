@@ -70,3 +70,20 @@ After refreshing recent Fingrid observations, generate a *separate*, conservativ
 ```
 
 The dashboard serves the resulting forecast through `/api/forward-forecast` and labels it separately from the earlier historical backtest. The new model uses only demand data from target time minus 48h or earlier, so all 96 predictions can be generated at one issuance. It does **not** inherit the previous model's 310 MW MAE. See [Phase 12 notes](docs/phase12-forward-forecast.md).
+
+## Phase 15: forecast selection and weather snapshots
+
+Forward forecasts now identify which candidate had lower pre-November validation MAE.
+The saved `predicted_mw` values are **always LightGBM**, and `baseline_mw`
+is always the historical reference. `preferred_mw` is the candidate favoured by
+validation, never a claim of proven live superiority. Earlier archived forecasts
+remain unchanged.
+
+Capture Open-Meteo forecasts *at retrieval time* to create a point-in-time
+archive for future weather-aware training; this does not alter demand forecasts:
+
+```powershell
+.\.venv\Scripts\python.exe -m gridwise.weather_forecast
+```
+
+See `docs/phase15-forward-safety-and-weather.md`.

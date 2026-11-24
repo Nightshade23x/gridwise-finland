@@ -40,8 +40,8 @@ def test_issue_makes_96_future_quarters_with_safe_lags():
     report, points, regressor = issue_forecast(data, pd.Timestamp("2026-11-21 14:15",tz="UTC"), estimators=8)
     assert len(points) == 96
     assert report["source_age_hours_at_issue"] == 1.25
-    assert points["timestamp_utc"].iloc[0] == pd.Timestamp("2026-11-21 14:15",tz="UTC")
-    assert points["timestamp_utc"].iloc[-1] == pd.Timestamp("2026-11-22 14:00",tz="UTC")
+    assert points["timestamp_utc"].iloc[0] == pd.Timestamp("2026-11-21 14:30",tz="UTC")
+    assert points["timestamp_utc"].iloc[-1] == pd.Timestamp("2026-11-22 14:15",tz="UTC")
     assert (points["predicted_mw"] > 0).all()
     assert report["training_observations"] > 50000
     assert report["preliminary_november_evaluation"]["paired_rows"] > 100
@@ -56,7 +56,7 @@ def test_stale_recent_data_fails_closed():
 def test_missing_essential_future_lag_fails_closed():
     data=synthetic_data()
     # First target uses exactly 48h historical lag.
-    data.loc[data["timestamp_utc"] == pd.Timestamp("2026-11-19 14:15",tz="UTC"),"demand_mw"] = np.nan
+    data.loc[data["timestamp_utc"] == pd.Timestamp("2026-11-19 14:30",tz="UTC"),"demand_mw"] = np.nan
     with pytest.raises(ValueError,match="missing historical observations"):
         issue_forecast(data,pd.Timestamp("2026-11-21 14:15",tz="UTC"),estimators=8,evaluate_november=False)
 

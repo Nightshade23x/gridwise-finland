@@ -151,11 +151,21 @@ def create_app(root: Path | None = None) -> FastAPI:
             values = np.asarray([p["predicted_mw"] for p in points], dtype=float)
             if not np.isfinite(values).all() or (values < 0).any():
                 raise ValueError("Invalid forecast predictions")
+            # Optional Phase 15 validation choice; older snapshots still work.
+            choice = obj.get("preferred_strategy")
+            if choice is not None:
+                if choice not in ("lightgbm", obj.get("selected_reference_baseline")):
+                    raise ValueError("Invalid preferred strategy")
+                preferred = np.asarray([p["preferred_mw"] for p in points], dtype=float)
+                expected = (values if choice == "lightgbm" else
+                            np.asarray([p["baseline_mw"] for p in points], dtype=float))
+                if not np.isfinite(preferred).all() or not np.allclose(preferred, expected, rtol=0, atol=0.002):
+                    raise ValueError("Preferred predictions do not match selected method")
             # Only expose safe metadata, never any credentials or filesystem paths.
             fields = ("kind", "status", "issued_at_utc", "first_target_utc", "last_target_utc",
                       "source_latest_measurement_utc", "source_age_hours_at_issue",
                       "resolution_minutes", "forecast_horizon_hours", "model",
-                      "selected_reference_baseline", "assumptions")
+                      "selected_reference_baseline", "preferred_strategy", "preferred_validation_mae_mw", "assumptions")
             return {**{key: obj.get(key) for key in fields}, "points": points}
         except (ValueError, OSError, KeyError, TypeError) as exc:
             raise HTTPException(503, f"Forward forecast artifact is invalid: {exc}") from exc
