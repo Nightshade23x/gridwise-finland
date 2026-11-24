@@ -26,6 +26,7 @@
       <article class="stat"><span>MAE reduction</span><strong id="improvement">—</strong><small>Relative to selected baseline</small></article>
       <article class="stat"><span>Source data coverage</span><strong id="coverage">—</strong><small>Historical 15-minute measurements</small></article>
     </section>
+    <p class="freshness summary-freshness" id="summary-updated" aria-live="polite">Historical backtest artifact status loading…</p>
     <section class="panel latest-panel" aria-label="Latest measured electricity demand">
       <div class="panelhead"><div><p class="eyebrow">RECENT FINGRID DATA</p><h2>Latest measured demand</h2></div><span class="tag">Measurements only · No live forecasts</span></div>
       <div class="recent-row">
@@ -34,11 +35,13 @@
         <div><span class="recent-label">Refresh status</span><strong id="recent-state">Not configured</strong></div>
       </div>
       <p class="recent-note" id="recent-note">Run the standalone data-refresh command to enable recent measurements.</p>
+      <p class="freshness" id="recent-updated" aria-live="polite">Refresh timestamp loading…</p>
       <button class="export-button" type="button" id="show-recent">View recent demand</button>
     </section>
     <section class="panel forward-panel" aria-label="Experimental next 24-hour forecast">
       <div class="panelhead"><div><p class="eyebrow">PHASE 12 · FORWARD FORECAST</p><h2>Upcoming 24-hour demand</h2></div><span class="tag">Experimental · Not grid advice</span></div>
       <p class="recent-note" id="forecast-status">No forward forecast generated yet. Run the forecasting worker after refreshing recent measurements.</p>
+      <p class="freshness" id="forecast-updated" aria-live="polite">Forecast issuance timestamp loading…</p>
       <div class="forward-metrics">
         <div><span class="recent-label">Issued at</span><strong id="forecast-issued">—</strong></div>
         <div><span class="recent-label">Source observation</span><strong id="forecast-source">—</strong></div>
@@ -49,9 +52,24 @@
       <p class="recent-note" id="forecast-selection">The comparison is a research experiment; validation-based selection will appear after the next forecast issuance.</p>
       <p class="recent-note">This model uses conservative historical demand inputs; it is <strong>not</strong> the model behind the historical 310 MW score. Results are not verified future performance.</p>
     </section>
+    <section class="panel forward-panel" aria-label="Experimental weather-aware forecasting candidate">
+      <div class="panelhead"><div><p class="eyebrow">PHASE 16 · WEATHER-AWARE CANDIDATE</p><h2>Does a weather forecast help?</h2></div><span class="tag">48-hour lead weather · Experiment only</span></div>
+      <p class="recent-note" id="weather-experiment-status">Weather experiment not generated yet. Run the Phase 16 weather downloader and candidate worker.</p>
+      <p class="freshness" id="weather-updated" aria-live="polite">Candidate issuance timestamp loading…</p>
+      <div class="forward-metrics">
+        <div><span class="recent-label">Validation MAE · demand only</span><strong id="weather-demand-mae">—</strong></div>
+        <div><span class="recent-label">Validation MAE · demand + weather</span><strong id="weather-weather-mae">—</strong></div>
+        <div><span class="recent-label">Validation-preferred</span><strong id="weather-preferred">—</strong></div>
+      </div>
+      <div class="forward-legend"><span class="model-line"></span> Demand + weather <span class="base-line"></span> Demand only <span class="swatch" style="background:#80c8ff"></span> Historical baseline</div>
+      <div class="forward-chart-wrap"><svg id="weather-candidate-chart" viewBox="0 0 960 245" role="img" aria-label="Weather-aware candidate and baselines for upcoming 24 hours"></svg></div>
+      <p class="recent-note" id="weather-experiment-explanation">This panel is a separate candidate; it does not change official forecast verification or the main issued GridWise forecast.</p>
+      <button type="button" id="reload-weather-candidate" class="export-button">Reload weather experiment</button>
+    </section>
     <section class="panel verification-panel" aria-label="Forward forecast accuracy verification">
       <div class="panelhead"><div><p class="eyebrow">PHASE 13 · FORECAST VERIFICATION</p><h2>How accurate were our issued forecasts?</h2></div><span class="tag">Matched to later Fingrid measurements</span></div>
       <p class="recent-note" id="verification-status" aria-live="polite">Loading verification report…</p>
+      <p class="freshness" id="verification-updated" aria-live="polite">Last verification calculation loading…</p>
       <div class="recent-row">
         <div><span class="recent-label">Matching actual readings</span><strong id="verification-coverage">—</strong></div>
         <div><span class="recent-label">Forward LightGBM MAE</span><strong id="verification-model-mae">—</strong></div>
@@ -68,6 +86,7 @@
     <section class="panel official-panel" aria-label="Benchmark against Fingrid official forecasts">
       <div class="panelhead"><div><p class="eyebrow">PHASE 14 · OFFICIAL BENCHMARK</p><h2>GridWise versus Fingrid</h2></div><span class="tag">Point-in-time API capture</span></div>
       <p class="recent-note" id="official-status" aria-live="polite">Checking for archived official forecasts…</p>
+      <p class="freshness" id="official-updated" aria-live="polite">Last official comparison calculation loading…</p>
       <div class="recent-row">
         <div><span class="recent-label">Matched measurements</span><strong id="official-coverage">—</strong></div>
         <div><span class="recent-label">GridWise MAE</span><strong id="official-gridwise-mae">—</strong></div>
@@ -94,6 +113,7 @@
       </div>
       <div class="chart-container" id="chart-area"><svg id="chart" viewBox="0 0 960 380" role="img" aria-label="Electricity demand time-series plot"></svg><div id="tooltip" class="tooltip" hidden></div></div>
       <div class="footnote"><span id="point-count">Choose a date range to explore data</span><span>Missing source values are not imputed</span></div>
+      <p class="freshness" id="explore-updated" aria-live="polite">Selected dataset artifact timestamp loading…</p>
       <section class="period-insights" id="period-insights" aria-live="polite" aria-label="Insights for the selected period">
         <div class="panelhead"><div><p class="eyebrow">PERIOD INSIGHTS</p><h2>What this period shows</h2></div><span class="tag">Computed from 15-minute data</span></div>
         <p id="insights-headline" class="insights-headline">Loading results for your selection…</p>

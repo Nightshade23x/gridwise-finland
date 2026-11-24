@@ -55,3 +55,10 @@
 /* Phase 14: archived official comparison panel. */
 .official-panel{margin:0 0 22px}
 @media(max-width:680px){.official-panel .panelhead{align-items:flex-start;flex-direction:column}}
+
+/* Phase 16b: source-aware freshness indicators, deliberately low prominence. */
+.freshness{font-size:12px;color:#9eb7c8;line-height:1.6;margin:8px 0 15px;overflow-wrap:anywhere}
+.freshness::before{content:"◷";color:#6acdbd;margin-right:7px}
+.freshness.freshness-missing::before{content:"◌";color:#7b91a5}
+.summary-freshness{margin:-7px 0 20px 4px}
+@media(max-width:600px){.summary-freshness{margin:0 0 18px}}

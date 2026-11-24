@@ -9,13 +9,51 @@ const ns = "http://www.w3.org/2000/svg";
 const $ = id => document.getElementById(id);
 
 async function loadJSON(url) {
-  const response = await fetch(url);
+  const response = await fetch(url,{cache:"no-store"});
   const body = await response.json();
   if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : `HTTP ${response.status}`);
   return body;
 }
 function notice(message) { $("notice").textContent = message; $("notice").hidden = !message; }
 function fmt(n, digits=1) { return typeof n === "number" ? n.toLocaleString("en-US",{maximumFractionDigits:digits}) : "—"; }
+
+// Display the source event time, NOT when the browser fetched the JSON.
+// These ages update locally every minute; no API polling or worker is started.
+function formatUtc(utc) {
+  const d = new Date(utc);
+  return Number.isFinite(d.getTime()) ? d.toISOString().replace("T"," ").slice(0,16)+" UTC" : "unknown";
+}
+function relativeAge(utc) {
+  const ms = Date.now()-Date.parse(utc);
+  if (!Number.isFinite(ms)) return "unknown age";
+  if (ms < -60000) return "scheduled in the future";
+  const minutes=Math.max(0,Math.floor(ms/60000));
+  if (minutes<1) return "less than a minute ago";
+  if (minutes<60) return `${minutes} min ago`;
+  const hours=Math.floor(minutes/60);
+  if (hours<48) return `${hours} h ago`;
+  return `${Math.floor(hours/24)} d ago`;
+}
+function renderFreshness(el) {
+  el.textContent=`${el.dataset.sourceLabel}: ${formatUtc(el.dataset.sourceUpdated)} (${relativeAge(el.dataset.sourceUpdated)}). ${el.dataset.sourceHelp||""}`;
+}
+function markFreshness(id,label,utc,help="") {
+  const el=$(id);
+  if (!utc || !Number.isFinite(Date.parse(utc))) {
+    el.classList.add("freshness-missing");
+    delete el.dataset.sourceUpdated;
+    el.textContent=`${label}: not available. ${help}`;
+    return;
+  }
+  el.classList.remove("freshness-missing");
+  el.dataset.sourceUpdated=utc;
+  el.dataset.sourceLabel=label;
+  el.dataset.sourceHelp=help;
+  el.title=`${label}: ${new Date(utc).toISOString()}`;
+  renderFreshness(el);
+}
+setInterval(()=>document.querySelectorAll(".freshness[data-source-updated]").forEach(renderFreshness),60000);
+
 
 let recentLatestUTC = null;
 function recentDateRange() {
@@ -32,6 +70,9 @@ async function updateRecentStatus() {
     $("recent-latest").textContent = format(status.latest_measurement_utc) +
       (typeof status.latest_demand_mw === "number" ? ` · ${fmt(status.latest_demand_mw)} MW` : "");
     $("recent-refresh").textContent = format(status.last_success_utc);
+    const lastEvent = status.status === "failed" ? status.last_attempt_utc : status.last_success_utc;
+    markFreshness("recent-updated",status.status === "failed" ? "Last refresh attempt" : "Measurements last refreshed",
+      lastEvent,"The dashboard does not download new readings; run python -m gridwise.refresh.");
     $("recent-state").textContent = status.status === "ok" ? "Last refresh succeeded" :
       status.status === "failed" ? "Last refresh failed" : "Not configured";
     $("recent-note").textContent = status.status === "ok"
@@ -41,6 +82,7 @@ async function updateRecentStatus() {
   } catch(error) {
     $("recent-state").textContent = "Status unavailable";
     $("recent-note").textContent = "Unable to read refresh status.";
+    markFreshness("recent-updated","Last data refresh",null,"Refresh status unavailable.");
   }
 }
 async function updateSummary() {
@@ -53,7 +95,13 @@ async function updateSummary() {
     const model = metrics.lightgbm?.mae_mw;
     $("improvement").textContent = base > 0 && typeof model === "number" ? `${fmt(100*(base-model)/base)}%` : "—";
     $("coverage").textContent = `${fmt(data.history.completeness_percent,2)}%`;
-  } catch (error) { notice(error.message); }
+    markFreshness("summary-updated","Historical backtest file last modified",
+      data.saved_artifact_times_utc?.backtest_file_modified,
+      `Historical evaluation ends ${formatUtc(data.evaluation.end_utc)}; this is not live accuracy.`);
+  } catch (error) {
+    notice(error.message);
+    markFreshness("summary-updated","Historical backtest artifact",null,"Unable to read summary.");
+  }
 }
 
 function svgElement(tag, attrs = {}, text = "") {
@@ -206,6 +254,8 @@ async function updateChart(event) {
     if(requestId!==chartRequestSequence)return;
     drawChart(data.points,data.kind,data.interval);
     currentSeries={...data,startDate:params.get("start"),endDate:params.get("end")};
+    markFreshness("explore-updated", "Selected CSV last modified", data.source_file_modified_utc,
+      "The selected date range is historical; file modification is not source publication time.");
     $("download-csv").disabled=!data.points.length;
     showInsights(insights);
     $("point-count").textContent=`${data.count.toLocaleString()} ${data.interval} observations shown`;
@@ -218,6 +268,7 @@ async function updateChart(event) {
       $("insights-metrics").replaceChildren();
       $("insights-details").replaceChildren();
       $("insights-implication").textContent="";
+      markFreshness("explore-updated","Selected CSV timestamp",null,"Selection unavailable.");
     }
   } finally {
     if(requestId===chartRequestSequence){button.disabled=false;button.textContent="Apply";}
@@ -245,11 +296,14 @@ async function updateForwardForecast() {
     const f = await loadJSON("/api/forward-forecast");
     if (f.status !== "ok" || !Array.isArray(f.points) || f.points.length !== 96) {
       $("forecast-status").textContent = f.message || "No forward forecast has been generated yet.";
+      markFreshness("forecast-updated","Forward forecast issued",null,"Run python -m gridwise.forward.");
       return;
     }
     const dateText = value => new Date(value).toISOString().replace("T", " ").slice(0,16)+" UTC";
     const hoursOld = (Date.now()-Date.parse(f.issued_at_utc))/3600000;
     $("forecast-issued").textContent=dateText(f.issued_at_utc);
+    markFreshness("forecast-updated","Forward forecast issued",f.issued_at_utc,
+      "It changes only after running python -m gridwise.forward, not on browser reload.");
     $("forecast-source").textContent=dateText(f.source_latest_measurement_utc);
     $("forecast-range").textContent=`${fmt(Math.min(...f.points.map(p=>p.predicted_mw)),0)}–${fmt(Math.max(...f.points.map(p=>p.predicted_mw)),0)} MW`;
     const selected = f.preferred_strategy;
@@ -291,6 +345,7 @@ async function updateForwardForecast() {
     }
   } catch(error) {
     $("forecast-status").textContent=`Could not load forward forecast: ${error.message}`;
+    markFreshness("forecast-updated","Forward forecast issued",null,"Unable to read saved forecast.");
   }
 }
 
@@ -310,9 +365,13 @@ async function updateVerification() {
       $("verification-model-mae").textContent = "—";
       $("verification-baseline-mae").textContent = "—";
       $("verification-summary").textContent = "Run gridwise.verify after refreshing measurements to evaluate issued forecasts.";
+      markFreshness("verification-updated","Verification report recalculated",null,
+        "Run python -m gridwise.verify to create a report.");
       return;
     }
     const f = response.forecasts[0];
+    markFreshness("verification-updated","Verification report recalculated",response.verified_at_utc,
+      "Reload only rereads the report. To update scores, refresh demand and run python -m gridwise.verify.");
     const stamp = text => new Date(text).toISOString().replace("T", " ").slice(0,16) + " UTC";
     label.textContent = `${response.forecast_count} archived issuance(s) · Last checked ${stamp(response.verified_at_utc)} · Latest issue ${stamp(f.issued_at_utc)} · ${f.status.replaceAll("_"," ")}`;
     $("verification-coverage").textContent = `${f.matched_targets} of 96 targets`;
@@ -346,6 +405,7 @@ async function updateVerification() {
   } catch(error) {
     label.textContent = `Verification unavailable: ${error.message}`;
     $("verification-summary").textContent = "Run gridwise.verify to regenerate the report.";
+    markFreshness("verification-updated","Verification report",null,"Unable to read report.");
   }
 }
 $("reload-verification").addEventListener("click", updateVerification);
@@ -364,9 +424,13 @@ async function updateOfficialBenchmark() {
       $('official-gridwise-mae').textContent='—';
       $('official-fingrid-mae').textContent='—';
       $('official-conclusion').textContent='To start, issue a fresh GridWise forecast, then immediately run: python -m gridwise.official capture';
+      markFreshness('official-updated','Official benchmark report',null,
+        'Capture a forecast, then run python -m gridwise.official verify.');
       return;
     }
     const item=r.comparisons[0], stamp=val=>new Date(val).toISOString().replace('T',' ').slice(0,16)+' UTC';
+    markFreshness('official-updated','Official comparison recalculated',r.verified_at_utc,
+      'Reload only rereads saved results. To update scores, refresh demand and run python -m gridwise.official verify.');
     status.textContent=`${r.snapshot_count} captured forecast(s) · Last checked ${stamp(r.verified_at_utc)} · Latest: ${item.status.replaceAll('_',' ')}`;
     $('official-coverage').textContent=`${item.matched_targets} of ${item.official_future_targets} available target slots`;
     $('official-gridwise-mae').textContent=item.model.mae_mw===null?'Pending':`${fmt(item.model.mae_mw)} MW`;
@@ -388,8 +452,67 @@ async function updateOfficialBenchmark() {
       li.textContent=`${stamp(past.gridwise_issued_at_utc)} · ${past.status.replaceAll('_',' ')} · ${past.matched_targets}/${past.official_future_targets} scored`;
       history.append(li);
     }
-  } catch(e) {status.textContent=`Official benchmark unavailable: ${e.message}`;}
+  } catch(e) {
+    status.textContent=`Official benchmark unavailable: ${e.message}`;
+    markFreshness('official-updated','Official comparison',null,'Unable to read saved report.');
+  }
 }
 $('reload-official').addEventListener('click',updateOfficialBenchmark);
 
-updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();updateOfficialBenchmark();
+// Phase 16 candidate: read-only forecast; no API calls for weather or training in JS.
+async function updateWeatherCandidate() {
+  const status = $("weather-experiment-status");
+  const svg = $("weather-candidate-chart");
+  svg.replaceChildren();
+  status.textContent = "Loading weather-model experiment…";
+  try {
+    const f = await loadJSON("/api/weather-model-comparison");
+    if (f.status !== "ok" || !Array.isArray(f.points) || f.points.length !== 96) {
+      status.textContent = f.message || "Weather-model experiment not generated.";
+      $("weather-preferred").textContent = "—";
+      markFreshness("weather-updated","Weather candidate issued",null,"Run python -m gridwise.weather_forward.");
+      $("weather-demand-mae").textContent = "—";
+      $("weather-weather-mae").textContent = "—";
+      return;
+    }
+    const m = f.validation_mae_mw || {};
+    markFreshness("weather-updated","Weather candidate issued",f.issued_at_utc,
+      "Reload only rereads the saved experiment; run python -m gridwise.weather_forward for a new one.");
+    $("weather-demand-mae").textContent = `${fmt(m.demand_only)} MW`;
+    $("weather-weather-mae").textContent = `${fmt(m.demand_weather)} MW`;
+    $("weather-preferred").textContent = (f.preferred_strategy || "unknown").replaceAll("_", " ");
+    const stamp = new Date(f.issued_at_utc).toISOString().replace("T"," ").slice(0,16) + " UTC";
+    status.textContent = `Candidate issued ${stamp} · Five Finnish cities · Archived 48-hour-lead temperature predictions`;
+    const diff = m.demand_only > 0 && Number.isFinite(m.demand_weather) ?
+      (100 * (m.demand_only-m.demand_weather) / m.demand_only) : null;
+    $("weather-experiment-explanation").textContent = diff === null
+      ? "Weather-data evaluation unavailable. This candidate is separate from the verified GridWise issuance."
+      : `On shared validation timestamps, weather ${diff > 0 ? "reduced" : "increased"} demand-model MAE by ${fmt(Math.abs(diff))}%. Validation selected ${(f.preferred_strategy||'').replaceAll('_',' ')} across both models and the reference baseline. These are not verified future accuracy scores; existing official forecasts are unchanged.`;
+    const W=960,H=245,L=76,R=25,T=20,B=40,PW=W-L-R,PH=H-T-B;
+    const series=[['demand_weather_mw','#59dfba'], ['demand_only_mw','#ffad66'], ['baseline_mw','#80c8ff']];
+    const all=f.points.flatMap(p=>series.map(([k])=>p[k])).filter(Number.isFinite);
+    if(!all.length) return;
+    const lo=Math.min(...all),hi=Math.max(...all), pad=Math.max(150,(hi-lo)*0.13);
+    const min=Math.max(0,lo-pad), max=hi+pad;
+    const X=i=>L+i/(f.points.length-1)*PW;
+    const Y=value=>T+(max-value)/(max-min)*PH;
+    for(let i=0;i<=4;i++) {
+      const y=T+i*PH/4;
+      svg.append(svgElement('line',{x1:L,x2:W-R,y1:y,y2:y,class:'chart-grid'}));
+      svg.append(svgElement('text',{x:L-9,y:y+4,'text-anchor':'end',class:'chart-axis'},Math.round(max-i*(max-min)/4).toLocaleString()));
+      const idx=i===4?95:i*24;
+      const time=new Date(f.points[idx].timestamp_utc).toISOString();
+      svg.append(svgElement('text',{x:X(idx),y:H-14,'text-anchor':'middle',class:'chart-axis'},time.slice(11,16)+' UTC'));
+    }
+    for(const [key,color] of series) {
+      const path=f.points.map((p,i)=> `${X(i).toFixed(1)},${Y(p[key]).toFixed(1)}`);
+      svg.append(svgElement('polyline',{points:path.join(' '),class:'chart-line',stroke:color}));
+    }
+  } catch(error) {
+    status.textContent = `Weather experiment unavailable: ${error.message}`;
+    markFreshness("weather-updated","Weather candidate",null,"Unable to read saved experiment.");
+  }
+}
+$("reload-weather-candidate").addEventListener("click",updateWeatherCandidate);
+
+updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();updateOfficialBenchmark();updateWeatherCandidate();

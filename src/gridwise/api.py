@@ -5,7 +5,7 @@ No forecasting or external requests occur inside the web-server process.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 import json
 from functools import lru_cache
 import os
@@ -45,6 +45,13 @@ def _read_csv(path: str, modified_ns: int) -> pd.DataFrame:
     if frame["timestamp_utc"].isna().any() or frame["timestamp_utc"].duplicated().any():
         raise ValueError(f"Invalid or duplicate timestamps in {Path(path).name}")
     return frame.sort_values("timestamp_utc").set_index("timestamp_utc")
+
+
+def _file_updated_utc(path: Path) -> str | None:
+    """Timestamp of our LOCAL saved artifact, not source publication or issue time."""
+    if not path.is_file():
+        return None
+    return datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat()
 
 
 def _load(root: Path, key: str) -> pd.DataFrame:
@@ -170,6 +177,47 @@ def create_app(root: Path | None = None) -> FastAPI:
         except (ValueError, OSError, KeyError, TypeError) as exc:
             raise HTTPException(503, f"Forward forecast artifact is invalid: {exc}") from exc
 
+    @api.get("/api/weather-model-comparison")
+    def weather_model_comparison():
+        """A read-only, separately issued experimental weather-candidate artifact."""
+        path = project_root / "data/live/weather_model_comparison_24h.json"
+        if not path.is_file():
+            return {"status":"not_generated", "points":[],
+                    "message":"Run python -m gridwise.weather_previous then python -m gridwise.weather_forward"}
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            if doc.get("kind") != "weather_forward_candidate" or doc.get("status") != "ok":
+                raise ValueError("Invalid candidate metadata")
+            points = doc["points"]
+            if len(points) != 96 or int(doc.get("resolution_minutes", 0)) != 15:
+                raise ValueError("Expected 96 fifteen-minute candidate targets")
+            stamps = pd.DatetimeIndex(pd.to_datetime([r["timestamp_utc"] for r in points], utc=True))
+            if (stamps.hasnans or stamps.has_duplicates or
+                    not (stamps[1:] - stamps[:-1] == pd.Timedelta(minutes=15)).all()):
+                raise ValueError("Invalid candidate time grid")
+            issued = pd.Timestamp(doc["issued_at_utc"])
+            if issued.tzinfo is None or not issued.tz_convert("UTC") < stamps[0]:
+                raise ValueError("Candidate must be issued before its targets")
+            values = np.asarray([[r[k] for k in
+                ("demand_only_mw","demand_weather_mw","baseline_mw","preferred_mw")]
+                for r in points], dtype=float)
+            if not np.isfinite(values).all() or (values < 0).any():
+                raise ValueError("Invalid candidate predictions")
+            chosen = doc.get("preferred_strategy")
+            if chosen not in ("demand_only", "demand_weather", doc.get("baseline_name")):
+                raise ValueError("Unknown validation preference")
+            chosen_col = {"demand_only":0,"demand_weather":1}.get(chosen,2)
+            if not np.allclose(values[:,3], values[:,chosen_col], atol=0.002, rtol=0):
+                raise ValueError("Preferred candidate does not match selected prediction")
+            fields = ("kind", "status", "issued_at_utc", "first_target_utc", "last_target_utc",
+                      "source_latest_measurement_utc", "weather_source",
+                      "weather_source_vintage_certified", "weather_city_count", "resolution_minutes",
+                      "forecast_horizon_hours", "validation_mae_mw", "preferred_strategy",
+                      "baseline_name", "train_rows", "validation_rows", "notes")
+            return {**{key:doc.get(key) for key in fields}, "points":points}
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            raise HTTPException(503, f"Weather-candidate artifact is invalid: {exc}") from exc
+
     @api.get("/api/forecast-verification")
     def forecast_verification(limit: int = Query(20, ge=1, le=100)):
         """Read saved forward-verification evidence; never compute it in the API."""
@@ -246,6 +294,10 @@ def create_app(root: Path | None = None) -> FastAPI:
                 "observed_intervals": int(measured.sum()),
                 "completeness_percent": round(100 * float(measured.mean()), 2),
             },
+            "saved_artifact_times_utc": {
+                "history_file_modified": _file_updated_utc(project_root / DATA_FILES["history"]),
+                "backtest_file_modified": _file_updated_utc(project_root / DATA_FILES["test"]),
+            },
             "evaluation": {
                 "start_utc": test.index.min().isoformat(),
                 "end_utc": test.index.max().isoformat(),
@@ -267,8 +319,10 @@ def create_app(root: Path | None = None) -> FastAPI:
         left = pd.Timestamp(start.isoformat(), tz="UTC")
         right = pd.Timestamp(end.isoformat(), tz="UTC")
         values = frame.loc[(frame.index >= left) & (frame.index < right), list(COLUMNS[kind])].copy()
+        source_modified = _file_updated_utc(project_root / DATA_FILES[kind])
         if values.empty:
-            return {"kind": kind, "interval": interval, "points": [], "count": 0}
+            return {"kind": kind, "interval": interval, "points": [], "count": 0,
+                    "source_file_modified_utc": source_modified}
         values = values.apply(pd.to_numeric, errors="coerce")
         if interval != "15min":
             values = values.resample("1h" if interval == "hour" else "1D").mean()
@@ -282,7 +336,8 @@ def create_app(root: Path | None = None) -> FastAPI:
             }}
             for timestamp, row in values.iterrows()
         ]
-        return {"kind": kind, "interval": interval, "count": len(points), "points": points}
+        return {"kind": kind, "interval": interval, "count": len(points),
+                "source_file_modified_utc": source_modified, "points": points}
 
     @api.get("/api/insights")
     def insights(
