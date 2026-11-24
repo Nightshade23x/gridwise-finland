@@ -218,6 +218,50 @@ def create_app(root: Path | None = None) -> FastAPI:
         except (ValueError, OSError, KeyError, TypeError) as exc:
             raise HTTPException(503, f"Weather-candidate artifact is invalid: {exc}") from exc
 
+    @api.get("/api/weather-forecast-verification")
+    def weather_forecast_verification(limit: int = Query(20, ge=1, le=100)):
+        """Read precomputed Phase 17 weather-forecast accuracy; no API calls or training."""
+        path = project_root / "data/live/weather_forecast_verification.json"
+        if not path.is_file():
+            return {"status": "not_verified", "forecast_count": 0, "forecasts": [],
+                    "message": "Refresh measured demand, then run python -m gridwise.weather_verify"}
+        try:
+            report = json.loads(path.read_text(encoding="utf-8"))
+            records = report["forecasts"]
+            if (report.get("schema_version") != 1 or report.get("status") not in ("ok", "no_forecasts")
+                    or not isinstance(records, list) or report.get("forecast_count") != len(records)):
+                raise ValueError("Malformed weather verification metadata")
+            methods = ("demand_weather", "demand_only", "baseline", "preferred")
+            for item in records:
+                if item.get("status") not in ("pending", "partial", "complete", "incomplete_source_data"):
+                    raise ValueError("Invalid comparison status")
+                if not (0 <= item["matched_targets"] <= item["eligible_targets"] <= 96):
+                    raise ValueError("Invalid coverage counts")
+                if not isinstance(item.get("by_horizon"), list) or len(item["by_horizon"]) != 4:
+                    raise ValueError("Invalid horizon breakdown")
+                if not isinstance(item.get("snapshot_sha256"), str) or len(item["snapshot_sha256"]) != 64:
+                    raise ValueError("Invalid snapshot identifier")
+                groups = [item["metrics"], *(band["metrics"] for band in item["by_horizon"])]
+                for group in groups:
+                    if set(group) != set(methods):
+                        raise ValueError("Missing candidate metrics")
+                    paired = {name: group[name]["paired_rows"] for name in methods}
+                    if len(set(paired.values())) != 1:
+                        raise ValueError("Candidates must use identical measured timestamps")
+            keys = ("forecast_id", "issued_at_utc", "first_target_utc", "last_target_utc",
+                    "preferred_strategy", "historical_baseline", "status", "total_targets",
+                    "eligible_targets", "matched_targets", "missing_eligible_targets",
+                    "metrics", "weather_mae_reduction_vs_demand_only_pct",
+                    "weather_mae_reduction_vs_baseline_pct", "by_horizon")
+            return {"schema_version": 1, "status": report["status"],
+                    "verified_at_utc": report.get("verified_at_utc"),
+                    "availability_buffer_minutes": report.get("availability_buffer_minutes"),
+                    "forecast_count": report["forecast_count"],
+                    "forecasts": [{key: item.get(key) for key in keys} for item in records[:limit]],
+                    "notes": report.get("notes", [])}
+        except (KeyError, TypeError, ValueError, OSError) as exc:
+            raise HTTPException(503, "Weather verification report is invalid") from exc
+
     @api.get("/api/forecast-verification")
     def forecast_verification(limit: int = Query(20, ge=1, le=100)):
         """Read saved forward-verification evidence; never compute it in the API."""

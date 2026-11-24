@@ -515,4 +515,66 @@ async function updateWeatherCandidate() {
 }
 $("reload-weather-candidate").addEventListener("click",updateWeatherCandidate);
 
-updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();updateOfficialBenchmark();updateWeatherCandidate();
+// Phase 17: verification is generated separately; this UI never estimates
+// actual readings, retrains, or fetches live weather data.
+async function updateWeatherVerification() {
+  const status=$('weather-verification-status');
+  const horizon=$('weather-verification-horizons');
+  const history=$('weather-verification-history');
+  horizon.replaceChildren(); history.replaceChildren();
+  status.textContent='Loading saved weather-candidate verification…';
+  try {
+    const report=await loadJSON('/api/weather-forecast-verification');
+    if(report.status !== 'ok' || !report.forecasts?.length) {
+      status.textContent=report.message||'No archived weather candidates have been verified.';
+      $('weather-verification-coverage').textContent='—';
+      $('weather-verification-weather-mae').textContent='—';
+      $('weather-verification-demand-mae').textContent='—';
+      $('weather-verification-summary').textContent='Issue a weather-model candidate, refresh measured demand, and run python -m gridwise.weather_verify.';
+      markFreshness('weather-verification-updated','Weather verification recalculated',report.verified_at_utc,
+        'Reload only rereads the report; run python -m gridwise.weather_verify to calculate it.');
+      return;
+    }
+    const item=report.forecasts[0];
+    markFreshness('weather-verification-updated','Weather verification recalculated',report.verified_at_utc,
+      'Reload only rereads the saved report; refresh demand and run python -m gridwise.weather_verify for new scores.');
+    status.textContent=`${report.forecast_count} archived candidate(s) · Latest ${formatUtc(item.issued_at_utc)} · ${item.status.replaceAll('_',' ')}`;
+    $('weather-verification-coverage').textContent=`${item.matched_targets} of 96 targets`;
+    const metrics=item.metrics;
+    $('weather-verification-weather-mae').textContent=metrics.demand_weather.mae_mw===null?'Pending':`${fmt(metrics.demand_weather.mae_mw)} MW`;
+    $('weather-verification-demand-mae').textContent=metrics.demand_only.mae_mw===null?'Pending':`${fmt(metrics.demand_only.mae_mw)} MW`;
+    if(!item.matched_targets) {
+      $('weather-verification-summary').textContent='No eligible measured targets yet. Forecasts are archived; only later published readings can be scored.';
+    } else {
+      const delta=item.weather_mae_reduction_vs_demand_only_pct;
+      const result=delta===null?'Relative improvement is undefined for a zero-error comparator.' :
+        delta>0?`Weather lowered MAE by ${fmt(delta)}% versus demand-only on matched targets.` :
+        delta<0?`Weather raised MAE by ${fmt(-delta)}% versus demand-only on matched targets.` :
+        'Both demand models had the same MAE on matched targets.';
+      const bias=metrics.demand_weather.bias_mw;
+      const drift=bias>0?`mean overprediction ${fmt(bias)} MW`:
+        bias<0?`mean underprediction ${fmt(-bias)} MW`:'zero mean bias';
+      const baseline=metrics.baseline.mae_mw===null?'pending':`${fmt(metrics.baseline.mae_mw)} MW`;
+      $('weather-verification-summary').textContent=`${item.status==='complete'?'Complete 24-hour window.':'Preliminary/incomplete window.'} ${result} Weather model ${drift}. Baseline MAE: ${baseline}. ${item.missing_eligible_targets} eligible measurements missing.`;
+    }
+    for(const bucket of item.by_horizon) {
+      const li=document.createElement('li');
+      const m=bucket.metrics;
+      li.textContent=`${bucket.range}: ${bucket.matched_targets}/${bucket.total_targets} measured · Weather ${m.demand_weather.mae_mw===null?'pending':fmt(m.demand_weather.mae_mw)+' MW'} · Demand-only ${m.demand_only.mae_mw===null?'pending':fmt(m.demand_only.mae_mw)+' MW'} · Baseline ${m.baseline.mae_mw===null?'pending':fmt(m.baseline.mae_mw)+' MW'}`;
+      horizon.append(li);
+    }
+    for(const old of report.forecasts.slice(0,8)) {
+      const li=document.createElement('li');
+      const mae=old.metrics.demand_weather.mae_mw;
+      li.textContent=`${formatUtc(old.issued_at_utc)} · ${old.status.replaceAll('_',' ')} · ${old.matched_targets}/96 measured · Weather MAE ${mae===null?'pending':fmt(mae)+' MW'}`;
+      history.append(li);
+    }
+  } catch(error) {
+    status.textContent=`Weather verification unavailable: ${error.message}`;
+    $('weather-verification-summary').textContent='Run python -m gridwise.weather_verify to regenerate the report.';
+    markFreshness('weather-verification-updated','Weather verification',null,'Unable to read saved report.');
+  }
+}
+$('reload-weather-verification').addEventListener('click',updateWeatherVerification);
+
+updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();updateOfficialBenchmark();updateWeatherCandidate();updateWeatherVerification();

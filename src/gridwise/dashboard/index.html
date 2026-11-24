@@ -66,6 +66,21 @@
       <p class="recent-note" id="weather-experiment-explanation">This panel is a separate candidate; it does not change official forecast verification or the main issued GridWise forecast.</p>
       <button type="button" id="reload-weather-candidate" class="export-button">Reload weather experiment</button>
     </section>
+    <section class="panel verification-panel" aria-label="Verification of weather-aware forward candidates">
+      <div class="panelhead"><div><p class="eyebrow">PHASE 17 · WEATHER FORECAST VERIFICATION</p><h2>Did weather improve real forecasts?</h2></div><span class="tag">Later Fingrid observations · Same targets</span></div>
+      <p class="recent-note" id="weather-verification-status" aria-live="polite">Checking saved weather-candidate verification…</p>
+      <p class="freshness" id="weather-verification-updated" aria-live="polite">Last weather verification calculation loading…</p>
+      <div class="forward-metrics">
+        <div><span class="recent-label">Matched measured targets</span><strong id="weather-verification-coverage">—</strong></div>
+        <div><span class="recent-label">Demand + weather MAE</span><strong id="weather-verification-weather-mae">—</strong></div>
+        <div><span class="recent-label">Demand-only MAE</span><strong id="weather-verification-demand-mae">—</strong></div>
+      </div>
+      <p class="recent-note" id="weather-verification-summary">Newly issued candidates need later measured demand before they can be scored.</p>
+      <div class="verification-details"><div><h3>Accuracy by forecast horizon</h3><ul id="weather-verification-horizons" class="verification-list"></ul></div>
+      <div><h3>Archived weather-model issuances</h3><ul id="weather-verification-history" class="verification-list"></ul></div></div>
+      <button type="button" id="reload-weather-verification" class="export-button">Reload weather verification</button>
+      <p class="recent-note verification-caution">Reload rereads a saved report only. For new scores, refresh measured demand and run <code>python -m gridwise.weather_verify</code>. Each issuance is scored independently on matching observations, with a 60-minute safety buffer by default; partial results are preliminary.</p>
+    </section>
     <section class="panel verification-panel" aria-label="Forward forecast accuracy verification">
       <div class="panelhead"><div><p class="eyebrow">PHASE 13 · FORECAST VERIFICATION</p><h2>How accurate were our issued forecasts?</h2></div><span class="tag">Matched to later Fingrid measurements</span></div>
       <p class="recent-note" id="verification-status" aria-live="polite">Loading verification report…</p>
