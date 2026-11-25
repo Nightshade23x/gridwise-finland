@@ -1,6 +1,6 @@
 """Phase 12 forward-forecast tests: deterministic, offline, no API calls."""
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import numpy as np
 import pandas as pd
@@ -24,12 +24,12 @@ def test_forward_features_never_use_recent_or_future_actual_values():
     data = synthetic_data()
     issue = pd.Timestamp("2026-11-21 14:15", tz="UTC")
     forecast_index = pd.date_range(issue, periods=96, freq="15min", tz="UTC")
-    gap = pd.date_range(data["timestamp_utc"].iloc[-1] + pd.Timedelta(minutes=15),issue-pd.Timedelta(minutes=15),freq="15min",tz="UTC")
+    gap = pd.date_range(data["timestamp_utc"].iloc[-1] + timedelta(minutes=15),issue-timedelta(minutes=15),freq="15min",tz="UTC")
     frame = pd.concat([data, pd.DataFrame({"timestamp_utc":gap,"demand_mw":np.nan}),
                        pd.DataFrame({"timestamp_utc":forecast_index,"demand_mw":np.nan})],ignore_index=True)
     before=feature_table(frame).tail(96)[FEATURES]
     changed=frame.copy()
-    changed.loc[changed["timestamp_utc"] >= issue-pd.Timedelta(hours=24),"demand_mw"] = 123456.0
+    changed.loc[changed["timestamp_utc"] >= issue-timedelta(hours=24),"demand_mw"] = 123456.0
     after=feature_table(changed).tail(96)[FEATURES]
     pd.testing.assert_frame_equal(before,after)
 

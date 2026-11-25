@@ -128,7 +128,7 @@ def main():
     parser.add_argument("--cities", nargs="+", choices=sorted(CITIES), default=list(CITIES))
     args = parser.parse_args()
     start = date.fromisoformat(args.start)
-    end = date.fromisoformat(args.end) if args.end else (pd.Timestamp.now(tz="UTC") + pd.Timedelta(days=2)).date()
+    end = date.fromisoformat(args.end) if args.end else (pd.Timestamp.now(tz="UTC") + timedelta(days=2)).date()
     frame = retrieve(start, end, cities=tuple(args.cities))
     atomic_csv(args.output.resolve(), frame)
     print(f"Saved {len(frame):,} hourly timestamps to {args.output}")

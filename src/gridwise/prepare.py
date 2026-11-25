@@ -4,6 +4,8 @@ Raw Fingrid CSVs are never changed. Missing targets remain missing.
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import argparse
 import json
 from pathlib import Path
@@ -12,7 +14,7 @@ import pandas as pd
 
 from .ingest import ROOT
 
-FREQ = pd.Timedelta(minutes=15)
+FREQ = timedelta(minutes=15)
 REQUIRED = {"start_time_utc", "end_time_utc", "demand_mw"}
 
 
@@ -51,7 +53,7 @@ def build_grid(
 
     raw = raw.loc[(raw["start_time_utc"] >= start) & (raw["start_time_utc"] < end)].copy()
     expected = pd.date_range(start, end, freq="15min", inclusive="left", tz="UTC")
-    if not len(expected) or (end - start) % FREQ != pd.Timedelta(0):
+    if not len(expected) or (end - start) % FREQ != timedelta(0):
         raise ValueError("Requested UTC range must be a multiple of 15 minutes")
 
     original_times = pd.DatetimeIndex(raw["start_time_utc"])

@@ -29,7 +29,7 @@ def _forecast():
 
 def _records():
     return [{"datasetId":166,"startTime":t.isoformat(),
-             "endTime":(t+pd.Timedelta(minutes=15)).isoformat(), "value":10050.} for t in _times()]
+             "endTime":(t+timedelta(minutes=15)).isoformat(), "value":10050.} for t in _times()]
 
 
 class FakeClient:
@@ -41,7 +41,7 @@ class FakeClient:
         self.calls += 1
         assert dataset_id == OFFICIAL_DATASET_ID
         assert start == _times()[0].to_pydatetime()
-        assert end == (_times()[-1]+pd.Timedelta(minutes=15)).to_pydatetime()
+        assert end == (_times()[-1]+timedelta(minutes=15)).to_pydatetime()
         return self.values
 
 

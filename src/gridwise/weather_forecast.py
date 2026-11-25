@@ -6,6 +6,8 @@ No weather values are incorporated into the deployed demand model yet.
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import argparse
 import json
 from pathlib import Path
@@ -72,7 +74,7 @@ def capture_weather(root: Path, *, session: requests.Session | None = None,
     # that values for earlier hours were known at a past date.
     first = captured.ceil("h")
     if first <= captured:
-        first += pd.Timedelta(hours=1)
+        first += timedelta(hours=1)
     targets = pd.date_range(first, periods=24, freq="h", tz="UTC")
     result = []
     for city, rows in by_city.items():

@@ -6,6 +6,8 @@ issuance. All variants are evaluated on identical non-null timestamps.
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import argparse
 import json
 from pathlib import Path
@@ -46,7 +48,7 @@ def audit_availability(
     idx = pd.DatetimeIndex(df["timestamp_utc"])
     if len(df) < STEPS_PER_DAY + max(buffers_minutes) // 15 + 1:
         raise ValueError("Not enough observations for selected buffers")
-    if idx.has_duplicates or not (idx[1:] - idx[:-1] == pd.Timedelta("15min")).all():
+    if idx.has_duplicates or not (idx[1:] - idx[:-1] == timedelta(minutes=15)).all():
         raise ValueError("Expected unique continuous 15-minute UTC grid")
     begin, finish = pd.Timestamp(start, tz="UTC"), pd.Timestamp(end, tz="UTC")
     if not begin < finish:

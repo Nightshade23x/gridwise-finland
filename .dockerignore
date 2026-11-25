@@ -16,3 +16,9 @@ reports
 docs
 tests
 *.zip
+
+# Explicitly retain the reviewed, exported public-demo subset.
+!demo_bundle/
+!demo_bundle/data/
+!demo_bundle/data/**
+!demo_bundle/manifest.json

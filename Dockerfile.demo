@@ -1,0 +1,18 @@
+# Read-only portfolio demo; no API key, background downloads or model training.
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    GRIDWISE_PROJECT_ROOT=/app \
+    GRIDWISE_DEMO_MODE=1
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN pip install --no-cache-dir ".[app]" \
+    && groupadd --system gridwise \
+    && useradd --system --uid 10001 --gid gridwise --no-create-home gridwise
+# These files are exported locally from genuine source data before deployment.
+COPY demo_bundle/data ./data
+COPY demo_bundle/manifest.json ./demo_manifest.json
+USER gridwise
+EXPOSE 10000
+CMD ["sh", "-c", "exec uvicorn gridwise.api:app --host 0.0.0.0 --port ${PORT:-10000}"]

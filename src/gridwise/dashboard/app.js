@@ -14,6 +14,26 @@ async function loadJSON(url) {
   if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : `HTTP ${response.status}`);
   return body;
 }
+// Public deployment exposes only a committed historical sample, not a live feed.
+async function loadDeploymentInfo() {
+  try {
+    const info = await loadJSON("/api/deployment-info");
+    if (info.mode !== "demo") return;
+    const banner = $("demo-banner");
+    banner.hidden = false;
+    banner.textContent = `PUBLIC ARCHIVED DEMO · Real historical data snapshot created ${formatUtc(info.snapshot_generated_at_utc)}. The source measurements and backtests do not update here. No live predictions or refresh jobs run on this site.`;
+    document.querySelectorAll(".latest-panel, .forward-panel, .verification-panel, .official-panel")
+      .forEach(panel => { panel.hidden = true; });
+    const recentOption = document.querySelector('#kind option[value="recent"]');
+    if (recentOption) recentOption.disabled = true;
+    const caption = $("coverage-caption");
+    if (caption) caption.textContent = "Coverage of exported historical sample";
+    const status = document.querySelector(".topbar .status");
+    if (status) status.textContent = "Archived data demo · Not live";
+  } catch (error) {
+    notice(`Deployment status unavailable: ${error.message}`);
+  }
+}
 function notice(message) { $("notice").textContent = message; $("notice").hidden = !message; }
 function fmt(n, digits=1) { return typeof n === "number" ? n.toLocaleString("en-US",{maximumFractionDigits:digits}) : "—"; }
 
@@ -577,4 +597,4 @@ async function updateWeatherVerification() {
 }
 $('reload-weather-verification').addEventListener('click',updateWeatherVerification);
 
-updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();updateOfficialBenchmark();updateWeatherCandidate();updateWeatherVerification();
+loadDeploymentInfo();updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();updateOfficialBenchmark();updateWeatherCandidate();updateWeatherVerification();

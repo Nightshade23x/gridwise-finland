@@ -6,6 +6,8 @@ target day. This is a retrospective backtest, not yet an operational forecast.
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import argparse
 import json
 from pathlib import Path
@@ -46,7 +48,7 @@ def build_features(prepared: pd.DataFrame, hourly_weather: pd.DataFrame) -> tupl
     clean["timestamp_utc"] = pd.to_datetime(clean["timestamp_utc"], utc=True)
     clean = clean.sort_values("timestamp_utc").reset_index(drop=True)
     idx = pd.DatetimeIndex(clean["timestamp_utc"])
-    if idx.has_duplicates or len(idx) < 2017 or not (idx[1:] - idx[:-1] == pd.Timedelta(minutes=15)).all():
+    if idx.has_duplicates or len(idx) < 2017 or not (idx[1:] - idx[:-1] == timedelta(minutes=15)).all():
         raise ValueError("Prepared data must be a unique, continuous 15-minute UTC grid (at least 21 days)")
     clean["demand_mw"] = pd.to_numeric(clean["demand_mw"], errors="raise")
     demand = clean["demand_mw"]
@@ -85,7 +87,7 @@ def build_features(prepared: pd.DataFrame, hourly_weather: pd.DataFrame) -> tupl
     for col in columns:
         weather[col] = pd.to_numeric(weather[col], errors="coerce")
     # Only carry a single hourly value over the three following quarter-hours.
-    quarter_hourly = weather.reindex(idx, method="ffill", tolerance=pd.Timedelta(minutes=45))
+    quarter_hourly = weather.reindex(idx, method="ffill", tolerance=timedelta(minutes=45))
     weather_features = []
     for col in columns:
         feature = f"{col}_lag_14d"
@@ -139,7 +141,7 @@ def experiment(
     train_cut = pd.Timestamp(val_start, tz="UTC")
     val_cut = pd.Timestamp(test_start, tz="UTC")
     end_cut = pd.Timestamp(end, tz="UTC")
-    if not (f["timestamp_utc"].min() < train_cut < val_cut < end_cut <= f["timestamp_utc"].max() + pd.Timedelta(minutes=15)):
+    if not (f["timestamp_utc"].min() < train_cut < val_cut < end_cut <= f["timestamp_utc"].max() + timedelta(minutes=15)):
         raise ValueError("Model splits must fall inside dataset in chronological order")
     if baseline_report.get("validation", {}).get("start_utc") != train_cut.isoformat() or baseline_report.get("test", {}).get("start_utc") != val_cut.isoformat():
         raise ValueError("Baseline report validation/test dates do not match model evaluation")

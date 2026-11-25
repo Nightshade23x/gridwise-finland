@@ -5,7 +5,7 @@ No forecasting or external requests occur inside the web-server process.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 import json
 from functools import lru_cache
 import os
@@ -122,6 +122,28 @@ def create_app(root: Path | None = None) -> FastAPI:
         paths = {key: (project_root / name).is_file() for key, name in DATA_FILES.items()}
         return {"status": "ready" if paths["history"] and paths["test"] else "missing_data", "files": paths}
 
+    @api.get("/api/deployment-info")
+    def deployment_info():
+        """Describe whether this installation is a static public demo or local tool."""
+        if os.environ.get("GRIDWISE_DEMO_MODE") != "1":
+            return {"mode": "local", "live_updates_enabled": False,
+                    "message": "Local GridWise installation; data updates require separate CLI workers."}
+        path = project_root / "demo_manifest.json"
+        if not path.is_file():
+            raise HTTPException(503, "Public demo manifest is missing")
+        try:
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            if (manifest.get("schema_version") != 1 or
+                    manifest.get("kind") != "static_historical_demo" or
+                    not isinstance(manifest.get("generated_at_utc"), str)):
+                raise ValueError("Invalid manifest")
+            return {"mode": "demo", "live_updates_enabled": False,
+                    "snapshot_generated_at_utc": manifest["generated_at_utc"],
+                    "source": manifest.get("source"),
+                    "message": "Archived historical research demo, not a live or periodically refreshed forecast."}
+        except (OSError, TypeError, ValueError) as exc:
+            raise HTTPException(503, "Public demo manifest is invalid") from exc
+
     @api.get("/api/refresh-status")
     def refresh_status():
         """Status is read-only; the API never triggers private-key downloads."""
@@ -153,7 +175,7 @@ def create_app(root: Path | None = None) -> FastAPI:
             if len(points) != 96 or int(obj.get("resolution_minutes", 0)) != 15:
                 raise ValueError("Expected 96 fifteen-minute targets")
             stamps = pd.to_datetime([p["timestamp_utc"] for p in points], utc=True)
-            if stamps.hasnans or stamps.has_duplicates or not (stamps[1:] - stamps[:-1] == pd.Timedelta(minutes=15)).all():
+            if stamps.hasnans or stamps.has_duplicates or not (stamps[1:] - stamps[:-1] == timedelta(minutes=15)).all():
                 raise ValueError("Forecast time grid is invalid")
             values = np.asarray([p["predicted_mw"] for p in points], dtype=float)
             if not np.isfinite(values).all() or (values < 0).any():
@@ -193,7 +215,7 @@ def create_app(root: Path | None = None) -> FastAPI:
                 raise ValueError("Expected 96 fifteen-minute candidate targets")
             stamps = pd.DatetimeIndex(pd.to_datetime([r["timestamp_utc"] for r in points], utc=True))
             if (stamps.hasnans or stamps.has_duplicates or
-                    not (stamps[1:] - stamps[:-1] == pd.Timedelta(minutes=15)).all()):
+                    not (stamps[1:] - stamps[:-1] == timedelta(minutes=15)).all()):
                 raise ValueError("Invalid candidate time grid")
             issued = pd.Timestamp(doc["issued_at_utc"])
             if issued.tzinfo is None or not issued.tz_convert("UTC") < stamps[0]:

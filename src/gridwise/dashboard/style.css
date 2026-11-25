@@ -62,3 +62,9 @@
 .freshness.freshness-missing::before{content:"◌";color:#7b91a5}
 .summary-freshness{margin:-7px 0 20px 4px}
 @media(max-width:600px){.summary-freshness{margin:0 0 18px}}
+
+/* Phase 18: explicit archived-data banner on static public deployments. */
+[hidden]{display:none!important}
+.demo-banner{background:#102b39;border:1px solid #316776;border-left:3px solid #59dfba;
+  border-radius:9px;color:#b9dde4;padding:14px 18px;margin:0 0 24px;
+  font-size:13px;line-height:1.7}

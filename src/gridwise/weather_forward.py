@@ -6,6 +6,8 @@ No actual future weather, ERA5 reanalysis, or unissued demand targets are inputs
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import argparse
 import json
 from pathlib import Path
@@ -47,7 +49,7 @@ def _align_weather(targets: pd.DatetimeIndex, weather: pd.DataFrame) -> pd.DataF
             raise ValueError("Invalid 48h-lead temperature values")
     # Reindex with 45-minute tolerance: 13:00 forecast valid for 13:00-13:45,
     # not 14:00. Never interpolate using a future weather reading.
-    merged = w.reindex(targets, method="ffill", tolerance=pd.Timedelta(minutes=45))
+    merged = w.reindex(targets, method="ffill", tolerance=timedelta(minutes=45))
     merged["forecast_temperature_avg_c"] = merged[list(COLUMNS.values())].mean(axis=1, skipna=False)
     merged["forecast_heating_degree_c"] = np.maximum(0, 18 - merged["forecast_temperature_avg_c"])
     return merged.reset_index(drop=True)
@@ -70,7 +72,7 @@ def experiment(
     d["timestamp_utc"] = pd.to_datetime(d["timestamp_utc"], utc=True)
     if d["timestamp_utc"].isna().any() or d["timestamp_utc"].duplicated().any():
         raise ValueError("Invalid demand timeline")
-    d = d.loc[d["timestamp_utc"] <= issue - pd.Timedelta(minutes=60)].copy()
+    d = d.loc[d["timestamp_utc"] <= issue - timedelta(minutes=60)].copy()
     measured = d.loc[d.demand_mw.notna(), "timestamp_utc"]
     if measured.empty:
         raise ValueError("No available demand measurements")
@@ -87,7 +89,7 @@ def experiment(
     f = feature_table(pd.concat([d, fill, future], ignore_index=True))
     # Open-Meteo previous_day2 temperatures were predicted 48 hours before
     # each target; even the last target lies >24h after its weather origin.
-    if targets[-1] - pd.Timedelta(hours=48) > issue - pd.Timedelta(hours=23):
+    if targets[-1] - timedelta(hours=48) > issue - timedelta(hours=23):
         raise AssertionError("Weather forecast not sufficiently old at issuance")
     weather_cols = _align_weather(pd.DatetimeIndex(f["timestamp_utc"]), weather)
     f[list(WEATHER_FEATURES)] = weather_cols[list(WEATHER_FEATURES)]

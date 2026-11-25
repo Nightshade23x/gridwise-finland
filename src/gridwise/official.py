@@ -7,6 +7,8 @@ an API query made after the fact.
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import argparse
 import hashlib
 import json
@@ -39,7 +41,7 @@ def validate_official_records(records: list[dict], target_times: pd.DatetimeInde
             raise ValueError("Unexpected official dataset ID")
         start = _stamp(record["startTime"])
         end = _stamp(record["endTime"])
-        if (end - start != pd.Timedelta(minutes=15) or start.minute % 15 != 0 or
+        if (end - start != timedelta(minutes=15) or start.minute % 15 != 0 or
             start.second or start.microsecond or start.nanosecond):
             raise ValueError("Invalid official 15-minute period")
         # A forecast obtained after target start is not a valid pre-target prediction.
@@ -95,7 +97,7 @@ def capture_snapshot(root: Path, *, now: pd.Timestamp | None = None,
         load_dotenv(root / ".env")
         client = FingridClient(os.environ.get("FINGRID_API_KEY", ""))
     start = ours["timestamp_utc"].iloc[0].to_pydatetime()
-    end = (ours["timestamp_utc"].iloc[-1] + pd.Timedelta(minutes=15)).to_pydatetime()
+    end = (ours["timestamp_utc"].iloc[-1] + timedelta(minutes=15)).to_pydatetime()
     # One API capture at the current time; old target data cannot stand in as
     # a historical snapshot, even if a past date can be queried via the API.
     records = client.fetch_window(OFFICIAL_DATASET_ID, start, end)
@@ -162,7 +164,7 @@ def benchmark_one(official: dict, ours: dict, measured: pd.DataFrame,
         raise ValueError("Invalid measured demand")
     paired = gridwise.merge(recorded, on="timestamp_utc", how="inner", validate="one_to_one")
     paired = paired.merge(measured, on="timestamp_utc", how="left", validate="one_to_one")
-    cutoff = now - pd.Timedelta(minutes=buffer_minutes)
+    cutoff = now - timedelta(minutes=buffer_minutes)
     eligible = paired["timestamp_utc"] <= cutoff
     valid = paired.loc[eligible & paired["demand_mw"].notna()]
     observed = valid["demand_mw"].to_numpy()

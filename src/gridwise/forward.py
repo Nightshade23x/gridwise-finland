@@ -8,7 +8,7 @@ No future actual consumption, future reanalysis, or API calls are used here.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 from pathlib import Path
 
@@ -25,7 +25,7 @@ MODEL_PATH = Path("data/model_outputs/forward_24h_model.txt")
 VALIDATION_START = pd.Timestamp("2026-01-01", tz="UTC")
 VALIDATION_END = pd.Timestamp("2026-07-01", tz="UTC")
 HOLDOUT_START = pd.Timestamp("2026-11-01", tz="UTC")
-INTERVAL = pd.Timedelta(minutes=15)
+INTERVAL = timedelta(minutes=15)
 HORIZON_STEPS = 96
 
 FEATURES = [
@@ -141,7 +141,7 @@ def issue_forecast(
     known = combined.copy()
     known["timestamp_utc"] = pd.to_datetime(known["timestamp_utc"], utc=True)
     # Guard against inadvertent records dated in the future.
-    known = known.loc[known["timestamp_utc"] <= issue - pd.Timedelta(minutes=60)]
+    known = known.loc[known["timestamp_utc"] <= issue - timedelta(minutes=60)]
     actual = known.loc[known["demand_mw"].notna(), "timestamp_utc"]
     if actual.empty:
         raise ValueError("No completed demand observations available")
@@ -206,7 +206,7 @@ def issue_forecast(
     if not horizon[FEATURES].notna().all(axis=1).all():
         raise ValueError("Future feature inputs contain missing historical observations; refresh/recover gaps first")
     # Every target's newest predictor is t-48h, >24h behind the issue.
-    if not (horizon["timestamp_utc"].max() - pd.Timedelta(hours=48) <= issue - pd.Timedelta(hours=24)):
+    if not (horizon["timestamp_utc"].max() - timedelta(hours=48) <= issue - timedelta(hours=24)):
         raise AssertionError("Future predictor exceeds the permitted issue-time cutoff")
     predicted = trained.predict(horizon[FEATURES])
     if not np.isfinite(predicted).all() or (predicted < 0).any():

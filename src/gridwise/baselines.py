@@ -5,6 +5,8 @@ prediction timestamp. No model learns from the evaluation period.
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import argparse
 import json
 from pathlib import Path
@@ -39,7 +41,7 @@ def make_predictions(frame: pd.DataFrame) -> pd.DataFrame:
     result['demand_mw'] = pd.to_numeric(result['demand_mw'], errors='raise')
     result = result.sort_values('timestamp_utc').reset_index(drop=True)
     idx = pd.DatetimeIndex(result['timestamp_utc'])
-    if idx.has_duplicates or len(idx) < 673 or not (idx[1:] - idx[:-1] == pd.Timedelta(minutes=15)).all():
+    if idx.has_duplicates or len(idx) < 673 or not (idx[1:] - idx[:-1] == timedelta(minutes=15)).all():
         raise ValueError('Prepared input must be a continuous, unique 15-minute UTC grid with at least 673 rows')
 
     result['pred_yesterday_mw'] = result['demand_mw'].shift(96)
@@ -86,7 +88,7 @@ def benchmark(
     test_start_ts = pd.Timestamp(test_start, tz='UTC')
     final_end = pd.Timestamp(end, tz='UTC')
     first = predictions['timestamp_utc'].iloc[0]
-    data_end = predictions['timestamp_utc'].iloc[-1] + pd.Timedelta(minutes=15)
+    data_end = predictions['timestamp_utc'].iloc[-1] + timedelta(minutes=15)
     if not first < val_start < test_start_ts < final_end <= data_end:
         raise ValueError('Expected data to span: historical context < validation < test < end')
 
@@ -113,7 +115,7 @@ def benchmark(
 
 def save_comparison_plot(test_rows: pd.DataFrame, path: Path) -> None:
     first = test_rows['timestamp_utc'].iloc[0]
-    week = test_rows.loc[test_rows['timestamp_utc'] < first + pd.Timedelta(days=7)]
+    week = test_rows.loc[test_rows['timestamp_utc'] < first + timedelta(days=7)]
     fig, ax = plt.subplots(figsize=(11, 4))
     ax.plot(week['timestamp_utc'], week['demand_mw'], label='Actual', linewidth=1.6)
     ax.plot(week['timestamp_utc'], week['selected_prediction_mw'], label='Selected baseline', linewidth=1.2)

@@ -5,6 +5,8 @@ The worker only evaluates exact UTC quarter-hour matches from Phase 11 data.
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import argparse
 import hashlib
 import json
@@ -128,7 +130,7 @@ def verify_one(forecast_id: str, payload: dict, measured: pd.DataFrame,
     if (~np.isfinite(measured["demand_mw"])).any() or (measured["demand_mw"] < 0).any():
         raise ValueError("Invalid measured demand")
     joined = targets.merge(measured, on="timestamp_utc", how="left", validate="one_to_one")
-    cutoff = as_of - pd.Timedelta(minutes=buffer_minutes)
+    cutoff = as_of - timedelta(minutes=buffer_minutes)
     mature = joined["timestamp_utc"] <= cutoff
     paired = mature & joined["demand_mw"].notna()
     valid = joined.loc[paired]

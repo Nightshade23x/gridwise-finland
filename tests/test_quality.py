@@ -1,3 +1,5 @@
+
+from datetime import timedelta
 import pandas as pd
 
 from gridwise.backfill import merge_new
@@ -8,7 +10,7 @@ def sample_frame(timestamps):
     return pd.DataFrame({
         "dataset_id": 124,
         "start_time_utc": pd.to_datetime(timestamps, utc=True),
-        "end_time_utc": pd.to_datetime(timestamps, utc=True) + pd.Timedelta(minutes=15),
+        "end_time_utc": pd.to_datetime(timestamps, utc=True) + timedelta(minutes=15),
         "demand_mw": [9500.0] * len(timestamps),
     })
 

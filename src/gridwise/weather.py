@@ -5,6 +5,8 @@ For operational forecasts, replace this input with weather forecasts as issued.
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import argparse
 import time
 from pathlib import Path
@@ -32,9 +34,9 @@ def date_windows(start_day: str, end_day: str):
     if current.tzinfo is not None or last.tzinfo is not None or last < current:
         raise ValueError("Use YYYY-MM-DD dates with start <= end")
     while current <= last:
-        end = min(current + pd.DateOffset(years=1) - pd.Timedelta(days=1), last)
+        end = min(current + pd.DateOffset(years=1) - timedelta(days=1), last)
         yield current.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
-        current = end + pd.Timedelta(days=1)
+        current = end + timedelta(days=1)
 
 
 def fetch_hourly(
@@ -114,7 +116,7 @@ def download_temperatures(
         all_cities.append(part.set_index("timestamp_utc"))
     combined = pd.concat(all_cities, axis=1).sort_index()
     begin = pd.Timestamp(start_day, tz="UTC")
-    exclusive_end = pd.Timestamp(end_day, tz="UTC") + pd.Timedelta(days=1)
+    exclusive_end = pd.Timestamp(end_day, tz="UTC") + timedelta(days=1)
     expected = pd.date_range(begin, exclusive_end, freq="h", inclusive="left")
     unexpected = combined.index.difference(expected)
     if len(unexpected):

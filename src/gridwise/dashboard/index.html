@@ -20,11 +20,12 @@
       <p>Explore Finland's electricity demand, compare historical model performance, and view separately generated experimental 24-hour forecasts. These predictions are not operational guidance.</p>
     </section>
     <div id="notice" class="notice" role="alert" hidden></div>
+    <div id="demo-banner" class="demo-banner" role="status" hidden></div>
     <section class="stats" aria-label="Summary metrics">
       <article class="stat"><span>LightGBM MAE</span><strong id="model-mae">—</strong><small>Held-out test · MW</small></article>
       <article class="stat"><span>Selected baseline MAE</span><strong id="baseline-mae">—</strong><small>Same evaluation timestamps · MW</small></article>
       <article class="stat"><span>MAE reduction</span><strong id="improvement">—</strong><small>Relative to selected baseline</small></article>
-      <article class="stat"><span>Source data coverage</span><strong id="coverage">—</strong><small>Historical 15-minute measurements</small></article>
+      <article class="stat"><span>Source data coverage</span><strong id="coverage">—</strong><small id="coverage-caption">Historical 15-minute measurements</small></article>
     </section>
     <p class="freshness summary-freshness" id="summary-updated" aria-live="polite">Historical backtest artifact status loading…</p>
     <section class="panel latest-panel" aria-label="Latest measured electricity demand">

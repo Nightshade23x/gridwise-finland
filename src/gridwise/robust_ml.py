@@ -6,6 +6,8 @@ period has already been inspected in earlier phases and is NOT a fresh holdout.
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import argparse
 import json
 from pathlib import Path
@@ -82,7 +84,7 @@ def run_stress_test(
         frames[mins] = f
     assert weather_cols is not None
     first = next(iter(frames.values()))
-    max_time = first["timestamp_utc"].iloc[-1] + pd.Timedelta(minutes=15)
+    max_time = first["timestamp_utc"].iloc[-1] + timedelta(minutes=15)
     if not (first["timestamp_utc"].iloc[0] < trn_end < val_end < test_end <= max_time):
         raise ValueError("Train, validation and test windows must be chronological and in range")
     full_features = CORE_FEATURES + weather_cols

@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: gridwise-finland-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.demo
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: GRIDWISE_PROJECT_ROOT
+        value: /app
+      - key: GRIDWISE_DEMO_MODE
+        value: "1"

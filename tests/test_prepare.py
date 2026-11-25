@@ -1,3 +1,5 @@
+
+from datetime import timedelta
 import pandas as pd
 import pytest
 
@@ -8,7 +10,7 @@ def sample_row(timestamp, value):
     ts = pd.Timestamp(timestamp)
     return {
         "start_time_utc": ts.isoformat(),
-        "end_time_utc": (ts + pd.Timedelta(minutes=15)).isoformat(),
+        "end_time_utc": (ts + timedelta(minutes=15)).isoformat(),
         "demand_mw": value,
     }
 
