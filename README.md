@@ -94,3 +94,9 @@ Open <http://127.0.0.1:8001> and <http://127.0.0.1:8001/api/health>. Once checke
 - [Open-Meteo](https://open-meteo.com/) historical reanalysis and previous model-run weather inputs, subject to their applicable terms.
 
 Data-quality gaps are preserved and documented. All forecast timestamps are processed in UTC; local calendar features use Finnish time when appropriate.
+
+**Live Demo:** https://gridwise-finland-demo.onrender.com/
+
+The public demo uses archived historical data.
+Live data ingestion and experimental forward forecasts
+are maintained separately.
