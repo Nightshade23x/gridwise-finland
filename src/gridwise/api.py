@@ -344,6 +344,42 @@ def create_app(root: Path | None = None) -> FastAPI:
         except (ValueError, KeyError, OSError, TypeError) as exc:
             raise HTTPException(503, "Official benchmark report is invalid") from exc
 
+    @api.get("/api/failure-analysis")
+    def failure_analysis(limit: int = Query(12, ge=1, le=50)):
+        """Read saved Phase 20 diagnosis. No scoring or archive mutation in HTTP."""
+        if os.environ.get("GRIDWISE_DEMO_MODE") == "1":
+            return {"status": "not_available_in_public_demo", "issuance_count": 0, "issuances": [],
+                    "message": "The public site contains archived historical results only."}
+        path = project_root / "data/live/failure_analysis.json"
+        if not path.is_file():
+            return {"status": "not_analyzed", "issuance_count": 0, "issuances": [],
+                    "message": "Run python -m gridwise.failure_analysis after collecting measured demand."}
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            records = doc["issuances"]
+            if (doc.get("schema_version") != 1 or doc.get("status") not in ("ok", "no_forecasts")
+                    or not isinstance(records, list) or doc.get("issuance_count") != len(records)):
+                raise ValueError("Invalid analysis report metadata")
+            allowed = {"pending", "partial", "complete", "incomplete_source_data"}
+            kinds = {"forward", "weather"}
+            for item in records:
+                coverage = item["coverage"]
+                if (item["kind"] not in kinds or item["status"] not in allowed or
+                        not (0 <= coverage["matched"] <= coverage["eligible"] <= 96) or
+                        len(item["by_horizon"]) != 4 or not isinstance(item["methods"], dict)):
+                    raise ValueError("Invalid analysis issuance")
+            fields = ("kind", "forecast_id", "issued_at_utc", "status", "coverage", "methods",
+                      "focus_method", "by_horizon", "by_utc_hour", "by_actual_demand_level",
+                      "largest_errors", "flags", "identical_prediction_to")
+            return {"schema_version": 1, "status": doc["status"],
+                    "analyzed_at_utc": doc.get("analyzed_at_utc"),
+                    "availability_buffer_minutes": doc.get("availability_buffer_minutes"),
+                    "issuance_count": len(records),
+                    "issuances": [{field: item.get(field) for field in fields} for item in records[:limit]],
+                    "notes": doc.get("notes", [])}
+        except (ValueError, KeyError, TypeError, OSError) as exc:
+            raise HTTPException(503, "Saved failure analysis is invalid") from exc
+
     @api.get("/api/summary")
     def summary():
         history = _load(project_root, "history")

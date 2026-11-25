@@ -114,6 +114,29 @@
       <button class="export-button" type="button" id="reload-official">Reload official benchmark</button>
       <p class="recent-note verification-caution">Fingrid values are captured when queried, not reconstructed from a revised historical series. Capture time may differ from GridWise issuance. Only official targets that were still in the future at capture are compared. These snapshots are local evidence, not independently certified issuance records.</p>
     </section>
+    <section class="panel verification-panel failure-panel" aria-label="Forward forecast failure diagnostics">
+      <div class="panelhead"><div><p class="eyebrow">PHASE 20 · MODEL FAILURE ANALYSIS</p><h2>Where did our forecasts go wrong?</h2></div><span class="tag">Observed forward errors · Not a backtest</span></div>
+      <p class="recent-note" id="failure-status" aria-live="polite">Loading saved forecast diagnostics…</p>
+      <p class="freshness" id="failure-updated" aria-live="polite">Last analysis time loading…</p>
+      <label class="failure-picker">Inspect issuance<select id="failure-issuance" aria-label="Choose archived forecast issuance"><option value="">No analysis yet</option></select></label>
+      <div class="recent-row">
+        <div><span class="recent-label">Matched / eligible targets</span><strong id="failure-coverage">—</strong></div>
+        <div><span class="recent-label">Model MAE</span><strong id="failure-mae">—</strong></div>
+        <div><span class="recent-label">Signed model bias</span><strong id="failure-bias">—</strong></div>
+      </div>
+      <p class="recent-note" id="failure-summary">All errors are calculated from real measurements on each separate forecast window.</p>
+      <div class="verification-details">
+        <div><h3>Error by six-hour forecast horizon</h3><ul class="verification-list" id="failure-horizons"></ul></div>
+        <div><h3>Largest individual forecast errors</h3><ul class="verification-list" id="failure-worst"></ul></div>
+      </div>
+      <div class="verification-details">
+        <div><h3>UTC hours with largest average errors</h3><ul class="verification-list" id="failure-hours"></ul></div>
+        <div><h3>Error by measured demand level</h3><ul class="verification-list" id="failure-levels"></ul></div>
+      </div>
+      <ul class="insights-details" id="failure-flags"></ul>
+      <button type="button" class="export-button" id="reload-failure">Reload failure analysis</button>
+      <p class="recent-note verification-caution">Descriptions highlight patterns, not proven causes. Duplicate and overlapping forecast issuances are not independent evaluations. Reload only rereads the saved report; update it with <code>python -m gridwise.failure_analysis</code>.</p>
+    </section>
     <section class="panel explore">
       <div class="panelhead"><div><p class="eyebrow">EXPLORE</p><h2>Demand over time</h2></div><span class="tag">UTC timestamps</span></div>
       <form id="filters" class="filters">

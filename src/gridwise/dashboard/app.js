@@ -597,4 +597,85 @@ async function updateWeatherVerification() {
 }
 $('reload-weather-verification').addEventListener('click',updateWeatherVerification);
 
-loadDeploymentInfo();updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();updateOfficialBenchmark();updateWeatherCandidate();updateWeatherVerification();
+// Phase 20: display saved issuance-specific analysis; never recalculate in browser.
+let failureReport = null;
+function showFailureIssuance() {
+  const id=$('failure-issuance').value;
+  const item=failureReport?.issuances?.find(x=>x.forecast_id===id);
+  const horizons=$('failure-horizons'),worst=$('failure-worst'), flags=$('failure-flags');
+  const hours=$('failure-hours'),levels=$('failure-levels');
+  horizons.replaceChildren(); worst.replaceChildren(); flags.replaceChildren(); hours.replaceChildren(); levels.replaceChildren();
+  if(!item) {
+    $('failure-coverage').textContent='—'; $('failure-mae').textContent='—';
+    $('failure-bias').textContent='—'; $('failure-summary').textContent='No analysis record selected.';
+    return;
+  }
+  const m=item.methods[item.focus_method];
+  $('failure-coverage').textContent=`${item.coverage.matched}/${item.coverage.eligible} eligible (${item.coverage.total} total)`;
+  $('failure-mae').textContent=m.mae_mw===null?'Pending':`${fmt(m.mae_mw)} MW`;
+  $('failure-bias').textContent=m.bias_mw===null?'Pending':`${m.bias_mw>=0?'+':''}${fmt(m.bias_mw)} MW`;
+  const modelName=item.focus_method.replaceAll('_',' ');
+  const state=item.status.replaceAll('_',' ');
+  const duplicate=item.identical_prediction_to?' An identical archived prediction curve exists.':'';
+  $('failure-summary').textContent=`${item.kind==='weather'?'Weather-candidate':'Demand-only'} issuance · ${state} · ${modelName}. Positive bias means overprediction; negative means underprediction.${duplicate}`;
+  for(const bucket of item.by_horizon) {
+    const li=document.createElement('li');
+    const mae=bucket.mae_by_method?.[item.focus_method];
+    const bias=bucket.bias_by_method?.[item.focus_method];
+    li.textContent=`${bucket.range}: ${bucket.matched}/${bucket.total} measured · MAE ${mae===null?'pending':fmt(mae)+' MW'} · Bias ${bias===null?'pending':(bias>=0?'+':'')+fmt(bias)+' MW'}`;
+    horizons.append(li);
+  }
+  for(const x of item.largest_errors || []) {
+    const li=document.createElement('li');
+    li.textContent=`${formatUtc(x.timestamp_utc)} · Error ${x.signed_error_mw>=0?'+':''}${fmt(x.signed_error_mw)} MW · Actual ${fmt(x.actual_mw)} MW`;
+    worst.append(li);
+  }
+  const rankedHours=[...(item.by_utc_hour||[])].filter(h=>typeof h.mae_by_method?.[item.focus_method]==='number')
+    .sort((a,b)=>b.mae_by_method[item.focus_method]-a.mae_by_method[item.focus_method]).slice(0,5);
+  for(const hour of rankedHours) {
+    const li=document.createElement('li');
+    li.textContent=`${String(hour.utc_hour).padStart(2,'0')}:00 UTC · MAE ${fmt(hour.mae_by_method[item.focus_method])} MW · ${hour.matched} target(s)`;
+    hours.append(li);
+  }
+  for(const level of item.by_actual_demand_level||[]) {
+    const li=document.createElement('li');
+    const name=level.group==='above_median'?'Above':'At/below';
+    const value=level.mae_by_method?.[item.focus_method];
+    li.textContent=`${name} this window's median (${fmt(level.threshold_mw)} MW): ${level.matched} measured · MAE ${value===null?'pending':fmt(value)+' MW'}`;
+    levels.append(li);
+  }
+  for(const value of item.flags || []) {
+    const li=document.createElement('li');li.textContent=value;flags.append(li);
+  }
+  if(!item.largest_errors?.length){const li=document.createElement('li');li.textContent='No eligible measured targets yet.';worst.append(li);}
+}
+async function updateFailureAnalysis() {
+  const previous=$('failure-issuance').value;
+  try {
+    const r=await loadJSON('/api/failure-analysis');
+    failureReport=r;
+    markFreshness('failure-updated','Failure analysis recalculated',r.analyzed_at_utc,
+      'Reload only rereads the report; run python -m gridwise.failure_analysis for updated measurements.');
+    const picker=$('failure-issuance'); picker.replaceChildren();
+    if(r.status!=='ok'||!r.issuances?.length){
+      $('failure-status').textContent=r.message||'No archived forecasts analyzed yet.';
+      const opt=document.createElement('option');opt.value='';opt.textContent='No saved diagnostics';picker.append(opt);
+      showFailureIssuance();return;
+    }
+    $('failure-status').textContent=`${r.issuance_count} archived issuances analyzed separately; no pooled headline accuracy. Select an issuance below.`;
+    for(const item of r.issuances){
+      const opt=document.createElement('option');opt.value=item.forecast_id;
+      opt.textContent=`${formatUtc(item.issued_at_utc)} · ${item.kind==='weather'?'Weather':'Demand'} · ${item.status.replaceAll('_',' ')}`;
+      picker.append(opt);
+    }
+    picker.value=r.issuances.some(x=>x.forecast_id===previous)?previous:r.issuances[0].forecast_id;
+    showFailureIssuance();
+  } catch(error){
+    $('failure-status').textContent=`Failure analysis unavailable: ${error.message}`;
+    markFreshness('failure-updated','Failure analysis',null,'Unable to read report.');
+  }
+}
+$('failure-issuance').addEventListener('change',showFailureIssuance);
+$('reload-failure').addEventListener('click',updateFailureAnalysis);
+
+loadDeploymentInfo();updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();updateOfficialBenchmark();updateWeatherCandidate();updateWeatherVerification();updateFailureAnalysis();
