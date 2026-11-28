@@ -1,0 +1,20 @@
+GridWise — Phase 22b Finnish-local-time update
+
+Install over the existing Phase 22 + API hotfix project. No forecasts or saved source data are included.
+
+PowerShell:
+  cd D:\Projects\gridwise-finland-starter\gridwise-finland
+  Expand-Archive "$env:USERPROFILE\Downloads\gridwise-phase22b-finland-time.zip" -DestinationPath . -Force
+  .\.venv\Scripts\python.exe -m pytest -q
+  .\.venv\Scripts\python.exe -m gridwise.failure_analysis
+  docker compose down
+  docker compose up --build -d
+
+Open http://127.0.0.1:8000 and hard-refresh (Ctrl+F5).
+Test the shadow panel and the chart, especially date filters and daily means.
+
+Expected tests: 161 passed (additional upstream/dependency warnings possible).
+Data and archived timestamps remain UTC; only UI labels, Finnish day filters,
+local-day chart binning, and Phase 20 local hour aggregation change.
+
+See docs/phase22b-finland-local-time.md for details.

@@ -380,6 +380,24 @@ def create_app(root: Path | None = None) -> FastAPI:
         except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
             raise HTTPException(503, "Saved level-shift experiment is invalid") from exc
 
+    @api.get("/api/level-shift-shadow")
+    def level_shift_shadow(limit: int = Query(12, ge=1, le=50)):
+        """Read-only shadow accuracy report; never trigger issuance or verification."""
+        if os.environ.get("GRIDWISE_DEMO_MODE") == "1":
+            return {"status": "not_available_in_public_demo", "issuance_count": 0, "issuances": [],
+                    "message": "The public site contains archived historical results only."}
+        path = project_root / "data/live/level_shift_shadow_verification.json"
+        if not path.is_file():
+            return {"status": "not_run", "issuance_count": 0, "issuances": [],
+                    "message": "Run python -m gridwise.level_shift_shadow issue, then verify."}
+        try:
+            from .shadow_report_schema import validate_report
+            report = json.loads(path.read_text(encoding="utf-8"))
+            validate_report(report)
+            return {**report, "issuances": report["issuances"][:limit]}
+        except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+            raise HTTPException(503, "Saved level-shift shadow report is invalid") from exc
+
     @api.get("/api/failure-analysis")
     def failure_analysis(limit: int = Query(12, ge=1, le=50)):
         """Read saved Phase 20 diagnosis. No scoring or archive mutation in HTTP."""
@@ -405,7 +423,7 @@ def create_app(root: Path | None = None) -> FastAPI:
                         len(item["by_horizon"]) != 4 or not isinstance(item["methods"], dict)):
                     raise ValueError("Invalid analysis issuance")
             fields = ("kind", "forecast_id", "issued_at_utc", "status", "coverage", "methods",
-                      "focus_method", "by_horizon", "by_utc_hour", "by_actual_demand_level",
+                      "focus_method", "by_horizon", "by_utc_hour", "by_finland_hour", "by_actual_demand_level",
                       "largest_errors", "flags", "identical_prediction_to")
             return {"schema_version": 1, "status": doc["status"],
                     "analyzed_at_utc": doc.get("analyzed_at_utc"),
@@ -447,23 +465,29 @@ def create_app(root: Path | None = None) -> FastAPI:
     @api.get("/api/series")
     def series(
         kind: Literal["history", "test", "recent"] = "test",
-        start: date = Query(..., description="Inclusive UTC date, YYYY-MM-DD"),
-        end: date = Query(..., description="Exclusive UTC date, YYYY-MM-DD"),
+        start: date = Query(..., description="Inclusive calendar date, YYYY-MM-DD"),
+        end: date = Query(..., description="Exclusive calendar date, YYYY-MM-DD"),
         interval: Literal["15min", "hour", "day"] = "hour",
+        tz: Literal["UTC", "Europe/Helsinki"] = "UTC",
     ):
         if end <= start:
             raise HTTPException(422, "End date must be after start date")
         frame = _load(project_root, kind)
-        left = pd.Timestamp(start.isoformat(), tz="UTC")
-        right = pd.Timestamp(end.isoformat(), tz="UTC")
+        # The dashboard uses Finnish calendar days, while older/API callers
+        # retain UTC semantics by default. DST boundaries yield 23/25-hour days.
+        left = pd.Timestamp(start.isoformat(), tz=tz).tz_convert("UTC")
+        right = pd.Timestamp(end.isoformat(), tz=tz).tz_convert("UTC")
         values = frame.loc[(frame.index >= left) & (frame.index < right), list(COLUMNS[kind])].copy()
         source_modified = _file_updated_utc(project_root / DATA_FILES[kind])
         if values.empty:
             return {"kind": kind, "interval": interval, "points": [], "count": 0,
-                    "source_file_modified_utc": source_modified}
+                    "source_file_modified_utc": source_modified, "display_timezone": tz}
         values = values.apply(pd.to_numeric, errors="coerce")
-        if interval != "15min":
-            values = values.resample("1h" if interval == "hour" else "1D").mean()
+        if interval == "day":
+            # Bin to midnight in the requested calendar zone, not UTC midnight.
+            values = values.tz_convert(tz).resample("1D").mean().tz_convert("UTC")
+        elif interval == "hour":
+            values = values.resample("1h").mean()
         if len(values) > 3000:
             raise HTTPException(422, "Too many points. Select a shorter date range or aggregate by hour/day.")
         # Return null, not NaN, for source-data gaps.
@@ -475,13 +499,14 @@ def create_app(root: Path | None = None) -> FastAPI:
             for timestamp, row in values.iterrows()
         ]
         return {"kind": kind, "interval": interval, "count": len(points),
-                "source_file_modified_utc": source_modified, "points": points}
+                "source_file_modified_utc": source_modified, "display_timezone": tz, "points": points}
 
     @api.get("/api/insights")
     def insights(
         kind: Literal["history", "test", "recent"] = "test",
-        start: date = Query(..., description="Inclusive UTC date, YYYY-MM-DD"),
-        end: date = Query(..., description="Exclusive UTC date, YYYY-MM-DD"),
+        start: date = Query(..., description="Inclusive calendar date, YYYY-MM-DD"),
+        end: date = Query(..., description="Exclusive calendar date, YYYY-MM-DD"),
+        tz: Literal["UTC", "Europe/Helsinki"] = "UTC",
     ):
         """Explain the selected window using unaggregated 15-minute observations.
 
@@ -491,11 +516,14 @@ def create_app(root: Path | None = None) -> FastAPI:
         if end <= start:
             raise HTTPException(422, "End date must be after start date")
         frame = _load(project_root, kind)
-        left = pd.Timestamp(start.isoformat(), tz="UTC")
-        right = pd.Timestamp(end.isoformat(), tz="UTC")
+        # The dashboard uses Finnish calendar days, while older/API callers
+        # retain UTC semantics by default. DST boundaries yield 23/25-hour days.
+        left = pd.Timestamp(start.isoformat(), tz=tz).tz_convert("UTC")
+        right = pd.Timestamp(end.isoformat(), tz=tz).tz_convert("UTC")
         selection = frame.loc[(frame.index >= left) & (frame.index < right)].copy()
         context = {
             "kind": kind,
+            "display_timezone": tz,
             "start_utc": left.isoformat(),
             "end_utc_exclusive": right.isoformat(),
             "resolution": "15min",
@@ -515,7 +543,7 @@ def create_app(root: Path | None = None) -> FastAPI:
             return f"{value:,.1f} MW"
 
         def fmt_stamp(value: pd.Timestamp) -> str:
-            return value.strftime("%Y-%m-%d %H:%M UTC")
+            return value.tz_convert(tz).strftime("%Y-%m-%d %H:%M %Z")
 
         if kind in ("history", "recent"):
             demand = pd.to_numeric(selection["demand_mw"], errors="coerce")

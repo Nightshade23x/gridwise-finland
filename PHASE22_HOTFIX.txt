@@ -1,0 +1,15 @@
+GridWise Phase 22 dashboard API hotfix
+=====================================
+Fixes /api/level-shift-shadow returning HTTP 500 in the API-only Docker image.
+Cause: the endpoint indirectly imported LightGBM through the forecast worker,
+while Docker intentionally installs only the app extra.
+
+Install (PowerShell from the GridWise repository root):
+  Expand-Archive "$env:USERPROFILE\Downloads\gridwise-phase22-shadow-api-hotfix.zip" -DestinationPath . -Force
+  .\.venv\Scripts\python.exe -m pytest -q
+  docker compose down
+  docker compose up --build -d
+  Invoke-RestMethod http://127.0.0.1:8000/api/level-shift-shadow
+
+No new forecasting issuance or verification is required.
+All 154 automated tests passed in the reconstruction environment.

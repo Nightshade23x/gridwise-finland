@@ -130,7 +130,7 @@
         <div><h3>Largest individual forecast errors</h3><ul class="verification-list" id="failure-worst"></ul></div>
       </div>
       <div class="verification-details">
-        <div><h3>UTC hours with largest average errors</h3><ul class="verification-list" id="failure-hours"></ul></div>
+        <div><h3 id="failure-hour-heading">Finland local hours with largest average errors</h3><ul class="verification-list" id="failure-hours"></ul></div>
         <div><h3>Error by measured demand level</h3><ul class="verification-list" id="failure-levels"></ul></div>
       </div>
       <ul class="insights-details" id="failure-flags"></ul>
@@ -152,15 +152,34 @@
       <button class="export-button" type="button" id="reload-level-shift">Reload level-shift diagnostic</button>
       <p class="recent-note verification-caution">Research only. The correction uses measurements at least 60 minutes old at each simulated issuance. April–June 2026 has been used in earlier GridWise development; this is not a new untouched test or verified live result. Existing forecasts are unchanged.</p>
     </section>
+    <section class="panel verification-panel shadow-panel" aria-label="Level-shift shadow forecast verification">
+      <div class="panelhead"><div><p class="eyebrow">PHASE 22 · SHADOW FORECAST VERIFICATION</p><h2>Does the correction work on new forecasts?</h2></div><span class="tag">Research shadow · Not deployed</span></div>
+      <p id="shadow-status" class="recent-note" aria-live="polite">Checking archived shadow forecasts…</p>
+      <p id="shadow-updated" class="freshness" aria-live="polite">Verification timestamp loading…</p>
+      <label class="failure-picker">Inspect issuance<select id="shadow-issuance" aria-label="Choose shadow forecast issuance"><option value="">No issued shadow forecasts</option></select></label>
+      <div class="recent-row">
+        <div><span class="recent-label">Matched targets</span><strong id="shadow-coverage">—</strong></div>
+        <div><span class="recent-label">Uncorrected MAE</span><strong id="shadow-uncorrected">—</strong></div>
+        <div><span class="recent-label">Corrected MAE</span><strong id="shadow-corrected">—</strong></div>
+      </div>
+      <p id="shadow-conclusion" class="recent-note">New shadow issuances will be scored only after subsequent measurements arrive.</p>
+      <div class="verification-details">
+        <div><h3>Accuracy by forecast horizon</h3><ul id="shadow-horizons" class="verification-list"></ul></div>
+        <div><h3>Archived issuance history</h3><ul id="shadow-history" class="verification-list"></ul></div>
+      </div>
+      <button class="export-button" type="button" id="reload-shadow">Reload shadow verification</button>
+      <p class="recent-note verification-caution">Run <code>python -m gridwise.level_shift_shadow issue</code> after refreshing Fingrid data to save a new shadow forecast. Later run <code>python -m gridwise.level_shift_shadow verify</code> to recalculate accuracy. Reload only rereads that saved report. Existing issued forecasts and the public archived demo remain unchanged.</p>
+    </section>
     <section class="panel explore">
-      <div class="panelhead"><div><p class="eyebrow">EXPLORE</p><h2>Demand over time</h2></div><span class="tag">UTC timestamps</span></div>
+      <div class="panelhead"><div><p class="eyebrow">EXPLORE</p><h2>Demand over time</h2></div><span class="tag">Finland time · EET/EEST</span></div>
       <form id="filters" class="filters">
         <label>View<select id="kind"><option value="test">Model comparison</option><option value="history">Historical demand</option><option value="recent">Recent measurements</option></select></label>
-        <label>From<input id="start" type="date" value="2026-07-01" required></label>
-        <label>Until <span class="hint">(exclusive)</span><input id="end" type="date" value="2026-07-08" required></label>
+        <label>From · Finnish date<input id="start" type="date" value="2026-07-01" required></label>
+        <label>Until · Finnish date <span class="hint">(exclusive)</span><input id="end" type="date" value="2026-07-08" required></label>
         <label>Resolution<select id="interval"><option value="hour">Hourly mean</option><option value="15min">15 minutes</option><option value="day">Daily mean</option></select></label>
         <button type="submit" id="apply">Apply</button>
       </form>
+      <p class="recent-note">Times and calendar-day filters use Europe/Helsinki (EET/EEST). Stored timestamps and API defaults remain UTC; CSV exports include both.</p>
       <div class="chart-toolbar">
         <div class="legend" id="legend" aria-label="Chart series"></div>
         <button id="download-csv" type="button" class="export-button" disabled>Export visible CSV</button>

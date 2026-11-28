@@ -21,7 +21,7 @@ async function loadDeploymentInfo() {
     if (info.mode !== "demo") return;
     const banner = $("demo-banner");
     banner.hidden = false;
-    banner.textContent = `PUBLIC ARCHIVED DEMO · Real historical data snapshot created ${formatUtc(info.snapshot_generated_at_utc)}. The source measurements and backtests do not update here. No live predictions or refresh jobs run on this site.`;
+    banner.textContent = `PUBLIC ARCHIVED DEMO · Real historical data snapshot created ${formatFinland(info.snapshot_generated_at_utc)}. The source measurements and backtests do not update here. No live predictions or refresh jobs run on this site.`;
     document.querySelectorAll(".latest-panel, .forward-panel, .verification-panel, .official-panel")
       .forEach(panel => { panel.hidden = true; });
     const recentOption = document.querySelector('#kind option[value="recent"]');
@@ -39,9 +39,29 @@ function fmt(n, digits=1) { return typeof n === "number" ? n.toLocaleString("en-
 
 // Display the source event time, NOT when the browser fetched the JSON.
 // These ages update locally every minute; no API polling or worker is started.
-function formatUtc(utc) {
-  const d = new Date(utc);
-  return Number.isFinite(d.getTime()) ? d.toISOString().replace("T"," ").slice(0,16)+" UTC" : "unknown";
+// All viewer-facing timestamps use Finland's IANA time zone, not the
+// browser's own zone. DST is automatically handled (EET/EEST).
+const FINLAND_TZ = "Europe/Helsinki";
+const finlandFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: FINLAND_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+  hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short"
+});
+function finlandParts(instant) {
+  const d = new Date(instant);
+  if (!Number.isFinite(d.getTime())) return null;
+  const parts = Object.fromEntries(finlandFormatter.formatToParts(d).map(p => [p.type, p.value]));
+  return {date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:${parts.minute}`, zone: parts.timeZoneName};
+}
+function formatFinland(utc) {
+  const f = finlandParts(utc);
+  return f ? `${f.date} ${f.time} ${f.zone}` : "unknown";
+}
+function finlandCalendarDate(utc) { return finlandParts(utc)?.date || null; }
+function shiftCalendarDate(dateString, days) {
+  const d = new Date(`${dateString}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate()+days);
+  return d.toISOString().slice(0,10);
 }
 function relativeAge(utc) {
   const ms = Date.now()-Date.parse(utc);
@@ -55,7 +75,7 @@ function relativeAge(utc) {
   return `${Math.floor(hours/24)} d ago`;
 }
 function renderFreshness(el) {
-  el.textContent=`${el.dataset.sourceLabel}: ${formatUtc(el.dataset.sourceUpdated)} (${relativeAge(el.dataset.sourceUpdated)}). ${el.dataset.sourceHelp||""}`;
+  el.textContent=`${el.dataset.sourceLabel}: ${formatFinland(el.dataset.sourceUpdated)} (${relativeAge(el.dataset.sourceUpdated)}). ${el.dataset.sourceHelp||""}`;
 }
 function markFreshness(id,label,utc,help="") {
   const el=$(id);
@@ -69,7 +89,7 @@ function markFreshness(id,label,utc,help="") {
   el.dataset.sourceUpdated=utc;
   el.dataset.sourceLabel=label;
   el.dataset.sourceHelp=help;
-  el.title=`${label}: ${new Date(utc).toISOString()}`;
+  el.title=`${label}: ${formatFinland(utc)} (stored as ${new Date(utc).toISOString()})`;
   renderFreshness(el);
 }
 setInterval(()=>document.querySelectorAll(".freshness[data-source-updated]").forEach(renderFreshness),60000);
@@ -77,16 +97,15 @@ setInterval(()=>document.querySelectorAll(".freshness[data-source-updated]").for
 
 let recentLatestUTC = null;
 function recentDateRange() {
-  const end = recentLatestUTC ? new Date(recentLatestUTC) : new Date();
-  const exclusive = new Date(Date.UTC(end.getUTCFullYear(),end.getUTCMonth(),end.getUTCDate()+1));
-  const start = new Date(exclusive.getTime()-7*86400000);
-  return [start.toISOString().slice(0,10),exclusive.toISOString().slice(0,10)];
+  const localDay = finlandCalendarDate(recentLatestUTC || new Date());
+  const exclusive = shiftCalendarDate(localDay, 1);
+  return [shiftCalendarDate(exclusive, -7), exclusive];
 }
 async function updateRecentStatus() {
   try {
     const status = await loadJSON("/api/refresh-status");
     recentLatestUTC = status.latest_measurement_utc;
-    const format = value => value ? new Date(value).toISOString().replace("T"," ").slice(0,16)+" UTC" : "—";
+    const format = value => value ? formatFinland(value) : "—";
     $("recent-latest").textContent = format(status.latest_measurement_utc) +
       (typeof status.latest_demand_mw === "number" ? ` · ${fmt(status.latest_demand_mw)} MW` : "");
     $("recent-refresh").textContent = format(status.last_success_utc);
@@ -117,7 +136,7 @@ async function updateSummary() {
     $("coverage").textContent = `${fmt(data.history.completeness_percent,2)}%`;
     markFreshness("summary-updated","Historical backtest file last modified",
       data.saved_artifact_times_utc?.backtest_file_modified,
-      `Historical evaluation ends ${formatUtc(data.evaluation.end_utc)}; this is not live accuracy.`);
+      `Historical evaluation ends ${formatFinland(data.evaluation.end_utc)}; this is not live accuracy.`);
   } catch (error) {
     notice(error.message);
     markFreshness("summary-updated","Historical backtest artifact",null,"Unable to read summary.");
@@ -131,12 +150,13 @@ function svgElement(tag, attrs = {}, text = "") {
   return e;
 }
 
-/** Render distinct UTC ticks for short or long chart windows. */
+/** Render Finnish calendar ticks, including the active EET/EEST offset. */
 function axisTickLabel(timestamp, spanMs, interval) {
-  const iso = new Date(timestamp).toISOString();
-  if (interval === "day" || spanMs >= 6 * 86400000) return iso.slice(0, 10);
-  if (spanMs <= 36 * 3600000) return iso.slice(11, 16);
-  return `${iso.slice(5, 10)} ${iso.slice(11, 16)}`;
+  const f = finlandParts(timestamp);
+  if (!f) return "—";
+  if (interval === "day" || spanMs >= 6 * 86400000) return f.date;
+  if (spanMs <= 36 * 3600000) return `${f.time} ${f.zone}`;
+  return `${f.date.slice(5)} ${f.time}`;
 }
 
 function drawChart(points, kind, interval="hour") {
@@ -210,8 +230,8 @@ function drawChart(points, kind, interval="hour") {
     crosshair.setAttribute("x1",String(x));crosshair.setAttribute("x2",String(x));crosshair.setAttribute("visibility","visible");
     tooltip.replaceChildren();
     const first=document.createElement("strong");
-    const stamp=new Date(p.timestamp_utc).toISOString();
-    first.textContent=interval==="day"?`${stamp.slice(0,10)} (UTC day)`:`${stamp.replace("T"," ").slice(0,16)} UTC`;
+    const f=finlandParts(p.timestamp_utc);
+    first.textContent=interval==="day"?`${f.date} (Finnish day)`:`${f.date} ${f.time} ${f.zone}`;
     tooltip.append(first);
     cols.forEach(s=>{const line=document.createElement("div");line.textContent=`${s.label}: ${fmt(p[s.key])} MW`;line.style.color=s.color;tooltip.append(line);});
     tooltip.hidden=false;
@@ -243,9 +263,9 @@ function showInsights(data) {
 let currentSeries = null;
 function exportChartCSV() {
   if (!currentSeries || !currentSeries.points.length) return;
-  const columns=currentSeries.kind === "test" ? ["timestamp_utc", "actual_mw", "model_mw", "selected_baseline_mw"] : ["timestamp_utc", "demand_mw"];
+  const columns=currentSeries.kind === "test" ? ["timestamp_finland", "timestamp_utc", "actual_mw", "model_mw", "selected_baseline_mw"] : ["timestamp_finland", "timestamp_utc", "demand_mw"];
   const escapeCSV=value=>value===null||value===undefined?"":`"${String(value).replaceAll('"','""')}"`;
-  const csv=[columns.join(","), ...currentSeries.points.map(p=>columns.map(k=>escapeCSV(p[k])).join(","))].join("\r\n")+"\r\n";
+  const csv=[columns.join(","), ...currentSeries.points.map(p=>columns.map(k=>escapeCSV(k==="timestamp_finland"?formatFinland(p.timestamp_utc):p[k])).join(","))].join("\r\n")+"\r\n";
   const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
   const url=URL.createObjectURL(blob);
   const link=document.createElement("a");
@@ -265,8 +285,8 @@ async function updateChart(event) {
   $("download-csv").disabled=true;
   $("insights-headline").textContent="Calculating insights for your selection…";
   try {
-    const params=new URLSearchParams({kind:$("kind").value,start:$("start").value,end:$("end").value,interval:$("interval").value});
-    const insightParams=new URLSearchParams({kind:$("kind").value,start:$("start").value,end:$("end").value});
+    const params=new URLSearchParams({kind:$("kind").value,start:$("start").value,end:$("end").value,interval:$("interval").value,tz:FINLAND_TZ});
+    const insightParams=new URLSearchParams({kind:$("kind").value,start:$("start").value,end:$("end").value,tz:FINLAND_TZ});
     const [data, insights]=await Promise.all([
       loadJSON(`/api/series?${params}`),
       loadJSON(`/api/insights?${insightParams}`)
@@ -319,7 +339,7 @@ async function updateForwardForecast() {
       markFreshness("forecast-updated","Forward forecast issued",null,"Run python -m gridwise.forward.");
       return;
     }
-    const dateText = value => new Date(value).toISOString().replace("T", " ").slice(0,16)+" UTC";
+    const dateText = formatFinland;
     const hoursOld = (Date.now()-Date.parse(f.issued_at_utc))/3600000;
     $("forecast-issued").textContent=dateText(f.issued_at_utc);
     markFreshness("forecast-updated","Forward forecast issued",f.issued_at_utc,
@@ -349,8 +369,8 @@ async function updateForwardForecast() {
     }
     for(let i=0;i<=4;i++) {
       const idx=i===4?95:i*24;
-      const stamp=new Date(f.points[idx].timestamp_utc).toISOString();
-      svg.append(svgElement("text",{x:X(idx),y:H-14,"text-anchor":"middle",class:"chart-axis"},stamp.slice(11,16)+" UTC"));
+      const stamp=finlandParts(f.points[idx].timestamp_utc);
+      svg.append(svgElement("text",{x:X(idx),y:H-14,"text-anchor":"middle",class:"chart-axis"},`${stamp.time} ${stamp.zone}`));
     }
     for(const [key,color] of [["predicted_mw","#59dfba"],["baseline_mw","#ffad66"]]) {
       let path=[];
@@ -392,7 +412,7 @@ async function updateVerification() {
     const f = response.forecasts[0];
     markFreshness("verification-updated","Verification report recalculated",response.verified_at_utc,
       "Reload only rereads the report. To update scores, refresh demand and run python -m gridwise.verify.");
-    const stamp = text => new Date(text).toISOString().replace("T", " ").slice(0,16) + " UTC";
+    const stamp = formatFinland;
     label.textContent = `${response.forecast_count} archived issuance(s) · Last checked ${stamp(response.verified_at_utc)} · Latest issue ${stamp(f.issued_at_utc)} · ${f.status.replaceAll("_"," ")}`;
     $("verification-coverage").textContent = `${f.matched_targets} of 96 targets`;
     $("verification-model-mae").textContent = f.model.mae_mw === null ? "Pending" : `${fmt(f.model.mae_mw)} MW`;
@@ -448,7 +468,7 @@ async function updateOfficialBenchmark() {
         'Capture a forecast, then run python -m gridwise.official verify.');
       return;
     }
-    const item=r.comparisons[0], stamp=val=>new Date(val).toISOString().replace('T',' ').slice(0,16)+' UTC';
+    const item=r.comparisons[0], stamp=formatFinland;
     markFreshness('official-updated','Official comparison recalculated',r.verified_at_utc,
       'Reload only rereads saved results. To update scores, refresh demand and run python -m gridwise.official verify.');
     status.textContent=`${r.snapshot_count} captured forecast(s) · Last checked ${stamp(r.verified_at_utc)} · Latest: ${item.status.replaceAll('_',' ')}`;
@@ -501,7 +521,7 @@ async function updateWeatherCandidate() {
     $("weather-demand-mae").textContent = `${fmt(m.demand_only)} MW`;
     $("weather-weather-mae").textContent = `${fmt(m.demand_weather)} MW`;
     $("weather-preferred").textContent = (f.preferred_strategy || "unknown").replaceAll("_", " ");
-    const stamp = new Date(f.issued_at_utc).toISOString().replace("T"," ").slice(0,16) + " UTC";
+    const stamp = formatFinland(f.issued_at_utc);
     status.textContent = `Candidate issued ${stamp} · Five Finnish cities · Archived 48-hour-lead temperature predictions`;
     const diff = m.demand_only > 0 && Number.isFinite(m.demand_weather) ?
       (100 * (m.demand_only-m.demand_weather) / m.demand_only) : null;
@@ -521,8 +541,8 @@ async function updateWeatherCandidate() {
       svg.append(svgElement('line',{x1:L,x2:W-R,y1:y,y2:y,class:'chart-grid'}));
       svg.append(svgElement('text',{x:L-9,y:y+4,'text-anchor':'end',class:'chart-axis'},Math.round(max-i*(max-min)/4).toLocaleString()));
       const idx=i===4?95:i*24;
-      const time=new Date(f.points[idx].timestamp_utc).toISOString();
-      svg.append(svgElement('text',{x:X(idx),y:H-14,'text-anchor':'middle',class:'chart-axis'},time.slice(11,16)+' UTC'));
+      const time=finlandParts(f.points[idx].timestamp_utc);
+      svg.append(svgElement('text',{x:X(idx),y:H-14,'text-anchor':'middle',class:'chart-axis'},`${time.time} ${time.zone}`));
     }
     for(const [key,color] of series) {
       const path=f.points.map((p,i)=> `${X(i).toFixed(1)},${Y(p[key]).toFixed(1)}`);
@@ -558,7 +578,7 @@ async function updateWeatherVerification() {
     const item=report.forecasts[0];
     markFreshness('weather-verification-updated','Weather verification recalculated',report.verified_at_utc,
       'Reload only rereads the saved report; refresh demand and run python -m gridwise.weather_verify for new scores.');
-    status.textContent=`${report.forecast_count} archived candidate(s) · Latest ${formatUtc(item.issued_at_utc)} · ${item.status.replaceAll('_',' ')}`;
+    status.textContent=`${report.forecast_count} archived candidate(s) · Latest ${formatFinland(item.issued_at_utc)} · ${item.status.replaceAll('_',' ')}`;
     $('weather-verification-coverage').textContent=`${item.matched_targets} of 96 targets`;
     const metrics=item.metrics;
     $('weather-verification-weather-mae').textContent=metrics.demand_weather.mae_mw===null?'Pending':`${fmt(metrics.demand_weather.mae_mw)} MW`;
@@ -586,7 +606,7 @@ async function updateWeatherVerification() {
     for(const old of report.forecasts.slice(0,8)) {
       const li=document.createElement('li');
       const mae=old.metrics.demand_weather.mae_mw;
-      li.textContent=`${formatUtc(old.issued_at_utc)} · ${old.status.replaceAll('_',' ')} · ${old.matched_targets}/96 measured · Weather MAE ${mae===null?'pending':fmt(mae)+' MW'}`;
+      li.textContent=`${formatFinland(old.issued_at_utc)} · ${old.status.replaceAll('_',' ')} · ${old.matched_targets}/96 measured · Weather MAE ${mae===null?'pending':fmt(mae)+' MW'}`;
       history.append(li);
     }
   } catch(error) {
@@ -627,14 +647,20 @@ function showFailureIssuance() {
   }
   for(const x of item.largest_errors || []) {
     const li=document.createElement('li');
-    li.textContent=`${formatUtc(x.timestamp_utc)} · Error ${x.signed_error_mw>=0?'+':''}${fmt(x.signed_error_mw)} MW · Actual ${fmt(x.actual_mw)} MW`;
+    li.textContent=`${formatFinland(x.timestamp_utc)} · Error ${x.signed_error_mw>=0?'+':''}${fmt(x.signed_error_mw)} MW · Actual ${fmt(x.actual_mw)} MW`;
     worst.append(li);
   }
-  const rankedHours=[...(item.by_utc_hour||[])].filter(h=>typeof h.mae_by_method?.[item.focus_method]==='number')
+  const localHourly = Array.isArray(item.by_finland_hour);
+  const hourRows = localHourly ? item.by_finland_hour : (item.by_utc_hour||[]);
+  $('failure-hour-heading').textContent=localHourly
+    ? 'Finland local hours with largest average errors'
+    : 'UTC hours (rerun analysis to enable Finnish hours)';
+  const rankedHours=[...hourRows].filter(h=>typeof h.mae_by_method?.[item.focus_method]==='number')
     .sort((a,b)=>b.mae_by_method[item.focus_method]-a.mae_by_method[item.focus_method]).slice(0,5);
   for(const hour of rankedHours) {
     const li=document.createElement('li');
-    li.textContent=`${String(hour.utc_hour).padStart(2,'0')}:00 UTC · MAE ${fmt(hour.mae_by_method[item.focus_method])} MW · ${hour.matched} target(s)`;
+    const hourNo=localHourly?hour.finland_hour:hour.utc_hour;
+    li.textContent=`${String(hourNo).padStart(2,'0')}:00 ${localHourly?'Finland local':'UTC'} · MAE ${fmt(hour.mae_by_method[item.focus_method])} MW · ${hour.matched} target(s)`;
     hours.append(li);
   }
   for(const level of item.by_actual_demand_level||[]) {
@@ -665,7 +691,7 @@ async function updateFailureAnalysis() {
     $('failure-status').textContent=`${r.issuance_count} archived issuances analyzed separately; no pooled headline accuracy. Select an issuance below.`;
     for(const item of r.issuances){
       const opt=document.createElement('option');opt.value=item.forecast_id;
-      opt.textContent=`${formatUtc(item.issued_at_utc)} · ${item.kind==='weather'?'Weather':'Demand'} · ${item.status.replaceAll('_',' ')}`;
+      opt.textContent=`${formatFinland(item.issued_at_utc)} · ${item.kind==='weather'?'Weather':'Demand'} · ${item.status.replaceAll('_',' ')}`;
       picker.append(opt);
     }
     picker.value=r.issuances.some(x=>x.forecast_id===previous)?previous:r.issuances[0].forecast_id;
@@ -720,4 +746,63 @@ async function updateLevelShift(){
 }
 $('reload-level-shift').addEventListener('click',updateLevelShift);
 
-loadDeploymentInfo();updateLevelShift();updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();updateOfficialBenchmark();updateWeatherCandidate();updateWeatherVerification();updateFailureAnalysis();
+let shadowReport=null;
+function showShadowIssuance(){
+  const record=shadowReport?.issuances?.find(x=>x.forecast_id===$('shadow-issuance').value);
+  const horizon=$('shadow-horizons');horizon.replaceChildren();
+  if(!record){
+    $('shadow-coverage').textContent='—';$('shadow-uncorrected').textContent='—';
+    $('shadow-corrected').textContent='—';$('shadow-conclusion').textContent='No shadow issuance selected.';
+    return;
+  }
+  $('shadow-coverage').textContent=`${record.matched_targets}/${record.total_targets} targets (${record.eligible_targets} eligible)`;
+  $('shadow-uncorrected').textContent=record.uncorrected.mae_mw===null?'Pending':`${fmt(record.uncorrected.mae_mw)} MW`;
+  $('shadow-corrected').textContent=record.corrected.mae_mw===null?'Pending':`${fmt(record.corrected.mae_mw)} MW`;
+  if(record.matched_targets===0){
+    $('shadow-conclusion').textContent='No eligible published measurements yet; this is a pending point-in-time shadow forecast.';
+  }else{
+    const d=record.mae_reduction_percent;
+    const comparison=d===null?'The reference MAE is zero, so no percentage change is available.':
+      d>0?`The correction reduced MAE by ${fmt(d,2)}% on matched targets.`:
+      d<0?`The correction increased MAE by ${fmt(-d,2)}% on matched targets.`:
+      'The correction and reference had equal MAE on matched targets.';
+    $('shadow-conclusion').textContent=`${comparison} Status: ${record.status.replaceAll('_',' ')}; ${record.missing_eligible_targets} eligible observations missing. These results are ${record.status==='complete'?'for one complete issuance':'preliminary'}.`;
+  }
+  for(const b of record.by_horizon){
+    const li=document.createElement('li');
+    li.textContent=`${b.range}: ${b.matched_targets}/${b.total_targets} measured · Original ${b.uncorrected.mae_mw===null?'pending':fmt(b.uncorrected.mae_mw)+' MW'} · Corrected ${b.corrected.mae_mw===null?'pending':fmt(b.corrected.mae_mw)+' MW'}`;
+    horizon.append(li);
+  }
+}
+async function updateShadow(){
+  const picker=$('shadow-issuance'),history=$('shadow-history'),previous=picker.value;
+  picker.replaceChildren();history.replaceChildren();
+  try{
+    const r=await loadJSON('/api/level-shift-shadow');shadowReport=r;
+    markFreshness('shadow-updated','Shadow verification recalculated',r.verified_at_utc,
+      'Reload only rereads the report; run python -m gridwise.level_shift_shadow verify for updated scores.');
+    if(r.status!=='ok'||!r.issuances?.length){
+      $('shadow-status').textContent=r.message||'No archived shadow issuances yet. Run the issue command first.';
+      const o=document.createElement('option');o.value='';o.textContent='No archived shadow issuances';picker.append(o);
+      showShadowIssuance();return;
+    }
+    $('shadow-status').textContent=`${r.issuance_count} shadow issuance(s) evaluated independently. No pooled live-performance claim.`;
+    for(const x of r.issuances){
+      const o=document.createElement('option');o.value=x.forecast_id;
+      o.textContent=`${formatFinland(x.issued_at_utc)} · ${x.status.replaceAll('_',' ')}`;picker.append(o);
+      const li=document.createElement('li');
+      li.textContent=`${formatFinland(x.issued_at_utc)} · ${x.status.replaceAll('_',' ')} · ${x.matched_targets}/96 matched · Corrected MAE ${x.corrected.mae_mw===null?'pending':fmt(x.corrected.mae_mw)+' MW'}`;
+      history.append(li);
+    }
+    picker.value=r.issuances.some(x=>x.forecast_id===previous)?previous:r.issuances[0].forecast_id;
+    showShadowIssuance();
+  }catch(error){
+    $('shadow-status').textContent=`Shadow verification unavailable: ${error.message}`;
+    markFreshness('shadow-updated','Shadow verification',null,'Saved report unavailable.');
+    showShadowIssuance();
+  }
+}
+$('shadow-issuance').addEventListener('change',showShadowIssuance);
+$('reload-shadow').addEventListener('click',updateShadow);
+
+loadDeploymentInfo();updateShadow();updateLevelShift();updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();updateOfficialBenchmark();updateWeatherCandidate();updateWeatherVerification();updateFailureAnalysis();

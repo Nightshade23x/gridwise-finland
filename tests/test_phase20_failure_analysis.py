@@ -178,3 +178,16 @@ def test_api_rejects_invalid_report(tmp_path):
     path.write_text(json.dumps({"schema_version": 1, "status": "ok", "issuance_count": 1,
                                 "issuances": [{"kind": "forward", "status": "complete", "coverage": {"eligible": 1, "matched": 2}, "by_horizon": []}]}))
     assert TestClient(create_app(tmp_path)).get('/api/failure-analysis').status_code == 503
+
+
+def test_finland_hour_groups_are_derived_from_actual_target_dates():
+    doc = forecast(issued="2026-11-23T13:11:00Z")
+    item, paired = diagnose_issuance(
+        "forward", "timezone-test", doc, measurements(doc),
+        as_of=pd.Timestamp("2026-11-26T00:00Z")
+    )
+    assert sum(row["matched"] for row in item["by_finland_hour"]) == len(paired) == 96
+    assert item["by_finland_hour"]
+    # EET is UTC+2 in November, so 14:00 UTC becomes 16:00 local.
+    assert paired.loc[paired["utc_hour"] == 14, "finland_hour"].eq(16).all()
+    assert "by_utc_hour" in item  # Retained for older API clients.

@@ -76,6 +76,7 @@ def diagnose_issuance(kind: str, identifier: str, payload: dict, measured: pd.Da
     paired["target_step"] = paired.index
     paired["horizon_hour"] = paired["target_step"] // 4
     paired["utc_hour"] = paired["timestamp_utc"].dt.hour
+    paired["finland_hour"] = paired["timestamp_utc"].dt.tz_convert("Europe/Helsinki").dt.hour
     paired["forecast_kind"] = kind
     paired["forecast_id"] = identifier
     paired["issued_at_utc"] = issue.isoformat()
@@ -96,6 +97,13 @@ def diagnose_issuance(kind: str, identifier: str, payload: dict, measured: pd.Da
             by_utc_hour.append({"utc_hour": hour, "matched": len(sub),
                                 "mae_by_method": {n: _stats(sub, c)["mae_mw"] for n, c in columns.items()},
                                 "bias_by_method": {n: _stats(sub, c)["bias_mw"] for n, c in columns.items()}})
+    by_finland_hour = []
+    for hour in range(24):
+        sub = paired.loc[paired["finland_hour"] == hour]
+        if not sub.empty:
+            by_finland_hour.append({"finland_hour": hour, "matched": len(sub),
+                                    "mae_by_method": {n: _stats(sub, c)["mae_mw"] for n, c in columns.items()},
+                                    "bias_by_method": {n: _stats(sub, c)["bias_mw"] for n, c in columns.items()}})
     # Demand levels are descriptive, within THIS issuance; do not use them as
     # known-at-issuance features or infer a general seasonal relationship.
     by_demand_level = []
@@ -141,6 +149,7 @@ def diagnose_issuance(kind: str, identifier: str, payload: dict, measured: pd.Da
               "last_target_utc": targets["timestamp_utc"].iloc[-1].isoformat(),
               "status": status, "coverage": coverage, "methods": metrics,
               "focus_method": focus, "by_horizon": summary, "by_utc_hour": by_utc_hour,
+              "by_finland_hour": by_finland_hour,
               "by_actual_demand_level": by_demand_level, "largest_errors": worst_errors,
               "flags": flags, "curve_sha256": curve_hash, "identical_prediction_to": None}
     return result, paired
