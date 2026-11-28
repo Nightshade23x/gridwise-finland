@@ -678,4 +678,46 @@ async function updateFailureAnalysis() {
 $('failure-issuance').addEventListener('change',showFailureIssuance);
 $('reload-failure').addEventListener('click',updateFailureAnalysis);
 
-loadDeploymentInfo();updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();updateOfficialBenchmark();updateWeatherCandidate();updateWeatherVerification();updateFailureAnalysis();
+async function updateLevelShift(){
+  const status=$('level-shift-status');
+  const monthly=$('level-shift-months'), method=$('level-shift-method');
+  monthly.replaceChildren(); method.replaceChildren();
+  try {
+    const r=await loadJSON('/api/level-shift');
+    markFreshness('level-shift-updated','Level-shift experiment recalculated',r.evaluated_at_utc,
+      'Reload only reads the saved report; run python -m gridwise.level_shift for a new evaluation.');
+    if(r.status!=='evaluated'){
+      status.textContent=r.message||'No level-shift experiment saved yet.';
+      $('level-shift-original').textContent='—';
+      $('level-shift-candidate').textContent='—';
+      $('level-shift-change').textContent='—';
+      return;
+    }
+    const p=r.selected_parameters, later=r.later_period;
+    const orig=later.uncorrected_reference?.mae_mw, corr=later.candidate?.mae_mw;
+    $('level-shift-original').textContent=`${fmt(orig)} MW`;
+    $('level-shift-candidate').textContent=`${fmt(corr)} MW`;
+    const change=later.mae_change_percent;
+    $('level-shift-change').textContent=typeof change==='number'?`${change>=0?'+':''}${fmt(change,2)}% reduction`:'—';
+    status.textContent=`${r.selection_period.coverage.valid_issuances} calibration issuances and ${later.coverage.valid_issuances} later checking issuances; ${later.coverage.paired_target_rows} shared measured targets.`;
+    $('level-shift-parameters').textContent=`Chosen from January–March 2026: ${p.baseline.replaceAll('_',' ')}, correction strength ${p.alpha}, decay ${p.decay_hours} hours; capped at ±${fmt(p.offset_cap_mw,0)} MW.`;
+    const bullets=[
+      `Every simulated daily issuance predicts the next 96 quarter-hour slots, starting after the issuance time.`,
+      `Each correction is calculated only from already available demand; no future target reading is a feature.`,
+      `Original reference and corrected candidate are evaluated on identical timestamps.`,
+      `A positive reduction is an improvement; a negative value means the correction increased errors.`
+    ];
+    for(const line of bullets){const li=document.createElement('li');li.textContent=line;method.append(li);}
+    for(const item of later.by_month||[]){
+      const li=document.createElement('li');
+      li.textContent=`${item.month}: ${item.issuances} issues · Reference ${fmt(item.uncorrected_reference.mae_mw)} MW · Corrected ${fmt(item.candidate.mae_mw)} MW`;
+      monthly.append(li);
+    }
+  }catch(error){
+    status.textContent=`Level-shift diagnostic unavailable: ${error.message}`;
+    markFreshness('level-shift-updated','Level-shift diagnostic',null,'Saved report is missing or invalid.');
+  }
+}
+$('reload-level-shift').addEventListener('click',updateLevelShift);
+
+loadDeploymentInfo();updateLevelShift();updateSummary();updateRecentStatus();updateChart();updateForwardForecast();updateVerification();updateOfficialBenchmark();updateWeatherCandidate();updateWeatherVerification();updateFailureAnalysis();

@@ -344,6 +344,42 @@ def create_app(root: Path | None = None) -> FastAPI:
         except (ValueError, KeyError, OSError, TypeError) as exc:
             raise HTTPException(503, "Official benchmark report is invalid") from exc
 
+    @api.get("/api/level-shift")
+    def level_shift():
+        """Read-only Phase 21 experiment; no tuning or network calls in HTTP."""
+        if os.environ.get("GRIDWISE_DEMO_MODE") == "1":
+            return {"status": "not_available_in_public_demo",
+                    "message": "The public dashboard contains a fixed historical-data sample."}
+        path = project_root / "data/live/level_shift_backtest.json"
+        if not path.is_file():
+            return {"status": "not_run", "message": "Run python -m gridwise.level_shift first."}
+        try:
+            report = json.loads(path.read_text(encoding="utf-8"))
+            params = report["selected_parameters"]
+            sel = report["selection_period"]
+            check = report["later_period"]
+            if report.get("schema_version") != 1 or report.get("status") != "evaluated":
+                raise ValueError("Invalid experiment status")
+            if (params["baseline"] not in {"lag_48h", "lag_7d", "blend_50_50"} or
+                    float(params["alpha"]) not in (0, 0.25, 0.5, 0.75, 1.0) or
+                    float(params["decay_hours"]) not in (6.0, 24.0) or
+                    sel["coverage"]["valid_issuances"] < 1 or
+                    check["coverage"]["valid_issuances"] < 1 or
+                    check["candidate"]["paired_targets"] != check["uncorrected_reference"]["paired_targets"] or
+                    not isinstance(check["by_month"], list)):
+                raise ValueError("Invalid experiment values")
+            for value in (sel["selected_mae"]["mae_mw"], check["candidate"]["mae_mw"],
+                          check["uncorrected_reference"]["mae_mw"]):
+                if not np.isfinite(float(value)) or float(value) < 0:
+                    raise ValueError("Invalid experiment MAE")
+            return {"schema_version": 1, "status": "evaluated",
+                    "evaluated_at_utc": report.get("evaluated_at_utc"),
+                    "selected_parameters": params,
+                    "selection_period": sel, "later_period": check,
+                    "notes": report.get("notes", [])}
+        except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+            raise HTTPException(503, "Saved level-shift experiment is invalid") from exc
+
     @api.get("/api/failure-analysis")
     def failure_analysis(limit: int = Query(12, ge=1, le=50)):
         """Read saved Phase 20 diagnosis. No scoring or archive mutation in HTTP."""

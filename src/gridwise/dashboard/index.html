@@ -137,6 +137,21 @@
       <button type="button" class="export-button" id="reload-failure">Reload failure analysis</button>
       <p class="recent-note verification-caution">Descriptions highlight patterns, not proven causes. Duplicate and overlapping forecast issuances are not independent evaluations. Reload only rereads the saved report; update it with <code>python -m gridwise.failure_analysis</code>.</p>
     </section>
+    <section class="panel verification-panel level-shift-panel" aria-label="Issue-time demand level-shift diagnostic">
+      <div class="panelhead"><div><p class="eyebrow">PHASE 21 · TARGETED FORECAST IMPROVEMENT</p><h2>Can recent demand correct an outdated baseline?</h2></div><span class="tag">Chronological diagnostic · Not deployed</span></div>
+      <p class="recent-note" id="level-shift-status" aria-live="polite">Loading the issue-time calibration report…</p>
+      <p class="freshness" id="level-shift-updated">Last calibration run loading…</p>
+      <div class="recent-row">
+        <div><span class="recent-label">Reference MAE · Apr–Jun</span><strong id="level-shift-original">—</strong></div>
+        <div><span class="recent-label">Corrected MAE · Apr–Jun</span><strong id="level-shift-candidate">—</strong></div>
+        <div><span class="recent-label">MAE change vs reference</span><strong id="level-shift-change">—</strong></div>
+      </div>
+      <p class="recent-note" id="level-shift-parameters">Correction candidates are selected on earlier data, never on the later checking period.</p>
+      <div class="verification-details"><div><h3>How it was evaluated</h3><ul class="verification-list" id="level-shift-method"></ul></div>
+      <div><h3>Later-period results by month</h3><ul class="verification-list" id="level-shift-months"></ul></div></div>
+      <button class="export-button" type="button" id="reload-level-shift">Reload level-shift diagnostic</button>
+      <p class="recent-note verification-caution">Research only. The correction uses measurements at least 60 minutes old at each simulated issuance. April–June 2026 has been used in earlier GridWise development; this is not a new untouched test or verified live result. Existing forecasts are unchanged.</p>
+    </section>
     <section class="panel explore">
       <div class="panelhead"><div><p class="eyebrow">EXPLORE</p><h2>Demand over time</h2></div><span class="tag">UTC timestamps</span></div>
       <form id="filters" class="filters">
